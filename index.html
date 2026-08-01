@@ -473,6 +473,7 @@
     } else { S.streak=0; S.rating=Math.max(0,S.rating-15); flash('−'+fmt(pos.stake),false); }
     questProgress(win);
     updateLevel(); renderBalance();
+    if($('profileModal').classList.contains('show')) renderProfile(false); // живое обновление статы
     elPos.classList.remove('show'); setTradeEnabled(true);
     if(S.balance<S.minStake) setTimeout(openBroke,700);
     if(S.stake>S.balance){S.stake=clampStake(S.stake);renderStake();}
