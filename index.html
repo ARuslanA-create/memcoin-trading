@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>МемКойн Трейдинг</title>
+<style>
+  :root{
+    --bg:#0A0E14; --panel:#111823; --panel-2:#0E141D; --border:#1E2A38;
+    --up:#2EE6A0; --up-dim:#1c9c6d; --down:#FF4D6D; --down-dim:#b63350;
+    --gold:#FFC23C; --meme:#A96BFF; --text:#E6EDF3; --muted:#7A8896;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Menlo",monospace;
+    --sans:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(1200px 600px at 50% -10%,#101a26 0%,var(--bg) 55%);
+    color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+  .app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:10px 12px 16px;gap:9px}
+
+  .topbar{display:flex;align-items:center;gap:10px}
+  .logo{font-weight:800;letter-spacing:-.02em;font-size:16px;line-height:1}
+  .logo b{color:var(--meme)}
+  .spacer{flex:1}
+  .pill{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--border);
+    border-radius:999px;padding:6px 10px;font-family:var(--mono);font-size:13px}
+  .coin-dot{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe08a,var(--gold));
+    box-shadow:0 0 8px rgba(255,194,60,.5);flex:none}
+  #balance{color:var(--gold);font-weight:700}
+  .lvl{color:var(--muted)} .lvl b{color:var(--text)}
+  .clickable{cursor:pointer;transition:transform .1s,border-color .15s}
+  .clickable:active{transform:scale(.95)} .clickable:hover{border-color:#2c3d50}
+
+  .nav{display:flex;gap:7px}
+  .nav button{flex:1;position:relative;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    color:var(--text);font-size:18px;padding:8px 0;cursor:pointer;transition:.12s}
+  .nav button:active{transform:scale(.95)}
+  .nav .badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;border-radius:999px;background:var(--down);
+    color:#fff;font-family:var(--sans);font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
+  .nav .badge.show{display:flex}
+
+  .ticker{display:flex;align-items:baseline;gap:10px;padding:2px 2px 0}
+  .sym{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--muted);background:var(--panel);
+    border:1px solid var(--border);border-radius:6px;padding:3px 7px}
+  .price{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .chg{font-family:var(--mono);font-size:13px;font-weight:600}
+  .chg.up{color:var(--up)} .chg.down{color:var(--down)}
+
+  .chart-wrap{position:relative;background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+    border:1px solid var(--border);border-radius:14px;overflow:hidden;flex:1;min-height:220px}
+  canvas{display:block;width:100%;height:100%}
+  .event-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%) translateY(-6px);font-weight:800;font-size:15px;
+    padding:6px 14px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
+  .event-banner.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .event-banner.pump{background:rgba(46,230,160,.15);color:var(--up);border:1px solid var(--up-dim)}
+  .event-banner.dump{background:rgba(255,77,109,.15);color:var(--down);border:1px solid var(--down-dim)}
+  .pos-chip{position:absolute;left:10px;top:10px;font-family:var(--mono);font-size:12px;background:rgba(10,14,20,.7);
+    border:1px solid var(--border);border-radius:8px;padding:6px 9px;display:none;line-height:1.4;backdrop-filter:blur(4px)}
+  .pos-chip.show{display:block}
+  .pos-chip .dir-up{color:var(--up)} .pos-chip .dir-down{color:var(--down)} .pos-chip #countdown{color:var(--gold)}
+
+  .pressure{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+  .pressure .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:7px}
+  .pressure .row b{color:var(--text)}
+  .gauge{height:8px;border-radius:999px;background:linear-gradient(90deg,var(--down) 0%,#3a4658 50%,var(--up) 100%);position:relative}
+  .gauge .needle{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;background:#fff;
+    box-shadow:0 0 6px rgba(255,255,255,.6);transform:translateX(-50%);transition:left .25s ease}
+  .hint{font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
+  .hint b.up{color:var(--up)} .hint b.down{color:var(--down)}
+
+  .controls{display:flex;flex-direction:column;gap:9px}
+  .seg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:52px;background:var(--panel);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:13px;font-weight:600;padding:9px 4px;border-radius:9px;cursor:pointer;transition:.12s}
+  .seg button.active{border-color:var(--gold);background:rgba(255,194,60,.1);color:var(--gold)}
+  .seg button:active{transform:scale(.97)}
+  .bet-row{display:flex;align-items:center;gap:8px}
+  .stepper{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px 8px;flex:1}
+  .stepper button{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-size:20px;font-weight:700;cursor:pointer}
+  .stepper button:active{transform:scale(.94)}
+  .amt{flex:1;text-align:center;position:relative}
+  .amt input{width:100%;text-align:center;background:transparent;border:none;outline:none;font-family:var(--mono);font-weight:700;font-size:18px;color:var(--gold);padding:0}
+  .amt small{display:block;font-size:10px;color:var(--muted);font-weight:400;letter-spacing:.04em}
+  .amt.editing{outline:1px solid var(--gold);border-radius:8px}
+  .trade{display:flex;gap:10px}
+  .trade button{flex:1;border:none;border-radius:14px;padding:16px 0;font-size:17px;font-weight:800;cursor:pointer;color:#06110c;transition:.12s;letter-spacing:.01em}
+  .trade button:active{transform:translateY(2px)} .trade button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .btn-up{background:linear-gradient(180deg,#38f7ad,var(--up-dim))}
+  .btn-down{background:linear-gradient(180deg,#ff6f88,var(--down-dim));color:#1a0409}
+  .trade .payout{display:block;font-size:11px;font-weight:600;opacity:.8;margin-top:2px}
+  .footnote{font-size:10px;color:var(--muted);text-align:center;line-height:1.5;padding:2px 8px}
+
+  .flash{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);font-weight:800;font-size:30px;font-family:var(--mono);
+    opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;text-shadow:0 4px 20px rgba(0,0,0,.5);z-index:20}
+  .flash.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .flash.win{color:var(--up)} .flash.lose{color:var(--down)}
+  .streak{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;background:rgba(169,107,255,.15);
+    border:1px solid var(--meme);color:var(--meme);font-weight:700;font-size:13px;padding:7px 14px;border-radius:999px;transition:.25s;z-index:15;pointer-events:none}
+  .streak.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(5,8,12,.72);display:none;align-items:center;justify-content:center;z-index:30;padding:20px;backdrop-filter:blur(3px)}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px 20px;max-width:360px;width:100%;text-align:center;max-height:88vh;overflow:auto}
+  .modal h2{margin:0 0 6px;font-size:19px}
+  .modal p{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.5}
+  .modal button.wide{width:100%;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
+  .primary{background:linear-gradient(180deg,#38f7ad,var(--up-dim));color:#06110c}
+  .ghost{background:var(--panel-2);border:1px solid var(--border)!important;color:var(--text)}
+
+  .pack{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+  .pack:active{transform:scale(.98)}
+  .pack .p-amt{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:16px}
+  .pack .p-price{font-size:12px;color:var(--muted);background:var(--panel);padding:4px 9px;border-radius:8px}
+  .pack .p-price.rub{color:var(--gold);background:rgba(255,194,60,.12);font-weight:700}
+  .p-tag{font-size:10px;color:var(--meme);font-weight:700;margin-left:6px}
+  .ad-btn{display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(46,230,160,.1);border:1px solid var(--up-dim)!important;color:var(--up)!important;font-weight:700;margin-bottom:12px}
+  .store-div{height:1px;background:var(--border);margin:6px 0 12px}
+  .store-note{font-size:10px;color:var(--muted);margin-top:10px}
+
+  .prof-head{display:flex;align-items:center;gap:14px;text-align:left;margin-bottom:16px}
+  .avatar{width:60px;height:60px;border-radius:16px;flex:none;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#0b0f16;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+  .prof-id{flex:1;min-width:0}
+  .prof-id input{width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:17px;font-weight:700;padding:0;border-bottom:1px dashed transparent}
+  .prof-id input:focus{border-bottom-color:var(--muted)}
+  .prof-id .uid{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+  .rank-box{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left;margin-bottom:12px}
+  .rank-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .rank-name{font-size:16px;font-weight:800}
+  .rank-mmr{font-family:var(--mono);font-weight:700;color:var(--gold)} .rank-mmr small{color:var(--muted);font-weight:400}
+  .rankbar{height:10px;border-radius:999px;background:var(--panel);overflow:hidden;border:1px solid var(--border)}
+  .rankbar .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--meme),var(--up));transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+  .rank-next{font-size:11px;color:var(--muted);margin-top:8px} .rank-next b{color:var(--text)}
+  .stats{display:flex;gap:8px;margin-bottom:6px}
+  .stat{flex:1;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center}
+  .stat .v{font-family:var(--mono);font-size:16px;font-weight:700} .stat .l{font-size:10px;color:var(--muted);margin-top:2px}
+
+  /* daily */
+  .cal{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 14px}
+  .day{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:10px 4px;text-align:center;position:relative}
+  .day .d-n{font-size:10px;color:var(--muted)} .day .d-r{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:13px;margin-top:3px}
+  .day.claimed{opacity:.45} .day.claimed::after{content:'✓';position:absolute;top:4px;right:6px;color:var(--up);font-weight:800;font-size:11px}
+  .day.today{border-color:var(--gold);background:rgba(255,194,60,.1);box-shadow:0 0 0 2px rgba(255,194,60,.15)}
+
+  /* quests */
+  .quest{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:9px;text-align:left}
+  .quest .q-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+  .quest .q-label{font-size:13px;font-weight:600}
+  .quest .q-reward{font-family:var(--mono);color:var(--gold);font-size:12px;font-weight:700;white-space:nowrap}
+  .q-bar{height:7px;border-radius:999px;background:var(--panel);overflow:hidden;border:1px solid var(--border)}
+  .q-bar .fill{height:100%;background:linear-gradient(90deg,var(--meme),var(--up));border-radius:999px;transition:width .5s}
+  .q-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+  .q-prog{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .q-claim{border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;background:var(--panel);color:var(--muted);border:1px solid var(--border)}
+  .q-claim.ready{background:linear-gradient(180deg,#38f7ad,var(--up-dim));color:#06110c;border:none}
+  .q-claim.claimed{opacity:.4}
+
+  /* leaderboard */
+  .lb-row{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:10px;text-align:left}
+  .lb-row.you{background:rgba(255,194,60,.08);border:1px solid rgba(255,194,60,.25)}
+  .lb-rank{width:26px;text-align:center;font-family:var(--mono);font-weight:700;color:var(--muted);flex:none}
+  .lb-av{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0f16;font-size:15px}
+  .lb-name{flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lb-name .tag{color:var(--gold);font-size:11px;margin-left:6px}
+  .lb-score{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:14px}
+  .lb-note{font-size:10px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo">Мем<b>Койн</b> Трейдинг</div>
+    <div class="spacer"></div>
+    <div class="pill lvl clickable" id="profileBtn">Трейдер ур.<b id="level">1</b></div>
+    <div class="pill clickable" id="balanceBtn"><span class="coin-dot"></span><span id="balance">1 000</span></div>
+  </div>
+
+  <div class="nav">
+    <button id="navDaily">🎁<span class="badge" id="dailyBadge">1</span></button>
+    <button id="navQuests">✅<span class="badge" id="questBadge">0</span></button>
+    <button id="navLeader">🏆</button>
+    <button id="navShare">📤</button>
+  </div>
+
+  <div class="ticker">
+    <span class="sym">БИТОК / BTK</span>
+    <span class="price" id="price">—</span>
+    <span class="chg up" id="chg">+0.00%</span>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+    <div class="pos-chip" id="posChip"></div>
+    <div class="event-banner" id="event"></div>
+  </div>
+
+  <div class="pressure">
+    <div class="row"><span>Давление рынка</span><b id="pressLabel">нейтрально</b></div>
+    <div class="gauge"><div class="needle" id="needle" style="left:50%"></div></div>
+    <div class="hint" id="hint">Индикатор подсказывает вероятное движение. Решать тебе.</div>
+  </div>
+
+  <div class="controls">
+    <div>
+      <div class="seg-label">Время экспирации</div>
+      <div class="seg" id="expSeg">
+        <button data-ms="5000">5с</button>
+        <button data-ms="15000" class="active">15с</button>
+        <button data-ms="30000">30с</button>
+        <button data-ms="60000">1м</button>
+        <button data-ms="120000">2м</button>
+        <button data-ms="300000">5м</button>
+      </div>
+    </div>
+    <div class="bet-row">
+      <div class="stepper">
+        <button id="minus">–</button>
+        <div class="amt" id="amtBox"><input id="stakeInput" type="text" inputmode="numeric" value="100" maxlength="9"><small>СТАВКА, МОНЕТ</small></div>
+        <button id="plus">+</button>
+      </div>
+    </div>
+    <div class="trade">
+      <button class="btn-up" id="up">ВВЕРХ ↑<span class="payout">выплата +92%</span></button>
+      <button class="btn-down" id="down">ВНИЗ ↓<span class="payout">выплата +92%</span></button>
+    </div>
+  </div>
+
+  <div class="footnote">Игровые монеты не имеют реальной ценности. Вывод и обмен на деньги невозможны. Это симулятор.</div>
+</div>
+
+<div class="flash" id="flash"></div>
+<div class="streak" id="streak"></div>
+
+<!-- broke -->
+<div class="modal-bg" id="brokeModal"><div class="modal">
+  <h2>Монеты кончились 😅</h2>
+  <p>Не беда — рынок никуда не денется. Забери бесплатные монеты и продолжай.</p>
+  <button class="wide primary" id="watchAd">Смотреть рекламу +500</button>
+  <button class="wide ghost" id="openStore2">Магазин монет</button>
+</div></div>
+
+<!-- store -->
+<div class="modal-bg" id="storeModal"><div class="modal">
+  <h2>Магазин монет</h2>
+  <button class="wide ghost ad-btn" id="storeAd">▶ Смотреть рекламу → +750</button>
+  <div class="store-div"></div>
+  <div class="pack" data-add="2500"><span class="p-amt">🪙 2 500</span><span class="p-price rub">149 ₽</span></div>
+  <div class="pack" data-add="8000"><span class="p-amt">🪙 8 000<span class="p-tag">ПОПУЛЯРНЫЙ</span></span><span class="p-price rub">399 ₽</span></div>
+  <div class="pack" data-add="20000"><span class="p-amt">🪙 20 000</span><span class="p-price rub">799 ₽</span></div>
+  <div class="pack" data-add="60000"><span class="p-amt">🪙 60 000<span class="p-tag">ВЫГОДНЫЙ</span></span><span class="p-price rub">1 990 ₽</span></div>
+  <button class="wide ghost" id="closeStore">Закрыть</button>
+  <div class="store-note">Демо-режим: оплата не производится. В ВК — покупка через VK Pay, монеты за rewarded-рекламу.</div>
+</div></div>
+
+<!-- profile -->
+<div class="modal-bg" id="profileModal"><div class="modal">
+  <div class="prof-head">
+    <div class="avatar" id="avatar">Т</div>
+    <div class="prof-id">
+      <input id="nick" value="Трейдер" maxlength="18" spellcheck="false">
+      <div class="uid" id="uid">ID 000000</div>
+    </div>
+  </div>
+  <div class="rank-box">
+    <div class="rank-top">
+      <div class="rank-name"><span id="rankIcon">🥉</span> <span id="rankName">Новичок</span></div>
+      <div class="rank-mmr"><span id="mmr">0</span> <small>рейтинг</small></div>
+    </div>
+    <div class="rankbar"><div class="fill" id="rankFill"></div></div>
+    <div class="rank-next" id="rankNext"></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="stTrades">0</div><div class="l">сделок</div></div>
+    <div class="stat"><div class="v" id="stWin">0%</div><div class="l">винрейт</div></div>
+    <div class="stat"><div class="v" id="stBest">0</div><div class="l">лучшая серия</div></div>
+  </div>
+  <button class="wide ghost" id="closeProfile">Закрыть</button>
+</div></div>
+
+<!-- daily -->
+<div class="modal-bg" id="dailyModal"><div class="modal">
+  <h2>Ежедневный бонус 🎁</h2>
+  <p id="dailySub">День 1 подряд. Заходи каждый день — награда растёт!</p>
+  <div class="cal" id="cal"></div>
+  <button class="wide primary" id="claimDaily">Забрать награду</button>
+  <button class="wide ghost" id="closeDaily" style="display:none">Закрыть</button>
+</div></div>
+
+<!-- quests -->
+<div class="modal-bg" id="questModal"><div class="modal">
+  <h2>Задания дня ✅</h2>
+  <p>Обновляются каждый день. Выполняй и забирай монеты.</p>
+  <div id="questList"></div>
+  <button class="wide ghost" id="closeQuests">Закрыть</button>
+</div></div>
+
+<!-- leaderboard -->
+<div class="modal-bg" id="leaderModal"><div class="modal">
+  <h2>Рейтинг друзей 🏆</h2>
+  <p>Топ по рейтингу трейдера за неделю.</p>
+  <div id="leaderList"></div>
+  <div class="lb-note" id="lbNote"></div>
+  <button class="wide ghost" id="closeLeader">Закрыть</button>
+</div></div>
+
+<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.round(n).toLocaleString('ru-RU');
+  const fmtPrice = n => n.toLocaleString('ru-RU',{maximumFractionDigits:0});
+
+  /* ================= PLATFORM LAYER (VK Bridge with fallback) =================
+     Настоящие вызовы VK Bridge работают ТОЛЬКО внутри ВК (window.vkBridge).
+     В превью/браузере автоматически включаются заглушки, чтобы файл был играбелен.
+     В продакшене: подключи vk-bridge (npm @vkontakte/vk-bridge или browser.min.js). */
+  const bridge = window.vkBridge || null;
+  const Platform = {
+    inVK: !!bridge,
+    async init(){ if(bridge){ try{ await bridge.send('VKWebAppInit'); }catch(e){} } },
+    async getUser(){
+      if(bridge){ try{ return await bridge.send('VKWebAppGetUserInfo'); }catch(e){} }
+      return null; // fallback -> демо-профиль
+    },
+    async storageGet(key){
+      if(bridge){ try{ const r=await bridge.send('VKWebAppStorageGet',{keys:[key]});
+        return r.keys && r.keys[0] ? r.keys[0].value : ''; }catch(e){} }
+      try{ return localStorage.getItem(key)||''; }catch(e){ return mem[key]||''; }
+    },
+    async storageSet(key,value){
+      if(bridge){ try{ await bridge.send('VKWebAppStorageSet',{key,value}); return; }catch(e){} }
+      try{ localStorage.setItem(key,value); }catch(e){ mem[key]=value; }
+    },
+    async rewarded(){ // возвращает true если ролик досмотрен
+      if(bridge){ try{ const r=await bridge.send('VKWebAppShowNativeAds',{ad_format:'reward'}); return !!r.result; }catch(e){ return false; } }
+      await wait(2000); return true; // fallback: имитация
+    },
+    async interstitial(){ if(bridge){ try{ await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
+    async pay(pack){
+      // В ВК покупка монет идёт через настроенный магазин товаров / VK Pay (VKWebAppShowOrderBox).
+      if(bridge){ try{ const r=await bridge.send('VKWebAppShowOrderBox',{type:'item',item:pack.item});
+        return r.success; }catch(e){ return false; } }
+      await wait(400); return true; // fallback: демо-покупка
+    },
+    async shareStory(text){
+      if(bridge){ try{ await bridge.send('VKWebAppShowStoryBox',{
+        background_type:'none',
+        stickers:[{sticker_type:'renderable',sticker:{content_type:'text',text:text,style:'classic'}}]
+      }); return true; }catch(e){ return false; } }
+      toast('История: "'+text+'"'); return true; // fallback
+    }
+  };
+  const mem={}; const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+  /* ================= STATE ================= */
+  const S = {
+    balance:1000, stake:100, minStake:25, payout:0.92, expMs:15000,
+    trades:0, wins:0, streak:0, bestStreak:0, rating:300,
+    nick:'Трейдер', uid:String(100000+Math.floor(Math.random()*900000)), hue:Math.floor(Math.random()*360),
+    // daily / quests
+    loginStreak:1, lastDay:'', dailyClaimed:false,
+    quests:null, questDay:'',
+    // price engine
+    price:30000, drift:0, driftTarget:0, eventTicks:0, eventDir:0, history:[], lastTick:0,
+    position:null
+  };
+  const WINDOW=240, TICK=100;
+  const RANKS=[{min:0,name:'Новичок',icon:'🥉'},{min:600,name:'Любитель',icon:'📈'},
+    {min:1500,name:'Трейдер',icon:'🥈'},{min:3000,name:'Профи',icon:'🥇'},
+    {min:5000,name:'Кит',icon:'🐋'},{min:8000,name:'Легенда',icon:'👑'}];
+  const DAILY_REWARDS=[200,300,500,800,1200,1800,3000]; // 7-дневная лесенка
+
+  function getRank(r){
+    let i=0; for(let k=0;k<RANKS.length;k++){ if(r>=RANKS[k].min) i=k; }
+    const cur=RANKS[i], next=RANKS[i+1]||null, floor=cur.min, ceil=next?next.min:cur.min;
+    const pct=next?Math.max(0,Math.min(1,(r-floor)/(ceil-floor))):1;
+    return {cur,next,floor,ceil,pct};
+  }
+  function freshQuests(){
+    return [
+      {id:'trades',label:'Совершить 10 сделок',target:10,prog:0,reward:500,claimed:false},
+      {id:'wins',label:'Выиграть 5 раундов',target:5,prog:0,reward:750,claimed:false},
+      {id:'streak',label:'Собрать серию x3',target:3,prog:0,reward:1000,claimed:false}
+    ];
+  }
+
+  /* ================= ELEMENTS ================= */
+  const cvs=$('chart'), ctx=cvs.getContext('2d');
+  const elPrice=$('price'),elChg=$('chg'),elBal=$('balance'),elLevel=$('level'),elStakeInput=$('stakeInput'),
+        elNeedle=$('needle'),elPress=$('pressLabel'),elHint=$('hint'),elEvent=$('event'),elPos=$('posChip'),
+        elFlash=$('flash'),elStreak=$('streak'),btnUp=$('up'),btnDown=$('down');
+
+  /* ================= PERSISTENCE ================= */
+  const SAVE_KEY='memcoin_save_v1';
+  let saveTimer=null;
+  function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(save,500); }
+  async function save(){
+    const d={balance:S.balance,stake:S.stake,trades:S.trades,wins:S.wins,bestStreak:S.bestStreak,
+      rating:S.rating,nick:S.nick,uid:S.uid,hue:S.hue,loginStreak:S.loginStreak,lastDay:S.lastDay,
+      dailyClaimed:S.dailyClaimed,quests:S.quests,questDay:S.questDay};
+    await Platform.storageSet(SAVE_KEY, JSON.stringify(d));
+  }
+  async function load(){
+    const raw=await Platform.storageGet(SAVE_KEY);
+    if(raw){ try{ Object.assign(S, JSON.parse(raw)); }catch(e){} }
+  }
+
+  /* ================= CANVAS ================= */
+  let W=0,Hh=0,DPR=1;
+  function resize(){ const r=cvs.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2);
+    W=r.width;Hh=r.height;cvs.width=W*DPR;cvs.height=Hh*DPR;ctx.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener('resize',resize);
+
+  /* ================= PRICE ENGINE ================= */
+  function gauss(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+  function stepPrice(){
+    if(Math.random()<0.012) S.driftTarget=(Math.random()*2-1);
+    S.drift+=(S.driftTarget-S.drift)*0.03;
+    if(S.eventTicks>0){S.eventTicks--;}
+    else if(Math.random()<0.004){S.eventTicks=14+Math.floor(Math.random()*18);S.eventDir=Math.random()<0.5?1:-1;showEvent(S.eventDir>0);}
+    const eventPush=S.eventTicks>0?S.eventDir*0.012:0;
+    let pct=S.drift*0.0009+gauss()*0.0026+eventPush;
+    S.price*=(1+pct); if(S.price<500)S.price=500;
+    S.history.push({price:S.price}); if(S.history.length>WINDOW)S.history.shift();
+  }
+  function pressureValue(){return Math.max(4,Math.min(96,50+S.drift*34+(S.eventTicks>0?S.eventDir*18:0)));}
+  function updateGauge(){
+    const p=pressureValue(); elNeedle.style.left=p+'%';
+    if(p>62){elPress.textContent='вверх '+Math.round(p)+'%';elHint.innerHTML='Похоже на рост. Ставка <b class="up">ВВЕРХ</b> сейчас выгоднее.';}
+    else if(p<38){elPress.textContent='вниз '+Math.round(100-p)+'%';elHint.innerHTML='Похоже на падение. Ставка <b class="down">ВНИЗ</b> сейчас выгоднее.';}
+    else {elPress.textContent='нейтрально';elHint.innerHTML='Рынок в равновесии — исход почти 50/50.';}
+  }
+
+  /* ================= FX ================= */
+  let evTimer=null;
+  function showEvent(isPump){elEvent.textContent=isPump?'🚀 БИТОК ПАМПЯТ!':'📉 ОБВАЛ БИТКА!';
+    elEvent.className='event-banner show '+(isPump?'pump':'dump');clearTimeout(evTimer);
+    evTimer=setTimeout(()=>{elEvent.className='event-banner '+(isPump?'pump':'dump');},1600);}
+  let flashTimer=null;
+  function flash(text,win){elFlash.textContent=text;elFlash.className='flash show '+(win?'win':'lose');
+    clearTimeout(flashTimer);flashTimer=setTimeout(()=>{elFlash.className='flash '+(win?'win':'lose');},900);}
+  let stTimer=null;
+  function showStreak(txt){elStreak.textContent=txt;elStreak.className='streak show';
+    clearTimeout(stTimer);stTimer=setTimeout(()=>{elStreak.className='streak';},1800);}
+  let toastTimer=null;
+  function toast(txt){showStreak(txt);}
+
+  /* ================= BETTING ================= */
+  function place(dir){
+    if(S.position) return;
+    if(S.balance<S.stake){openBroke();return;}
+    S.balance-=S.stake; S.position={dir,entry:S.price,stake:S.stake,resolveAt:performance.now()+S.expMs};
+    renderBalance();setTradeEnabled(false);elPos.classList.add('show');
+  }
+  function resolve(){
+    const pos=S.position; if(!pos) return;
+    const win=pos.dir==='up'?(S.price>pos.entry):(S.price<pos.entry);
+    S.position=null; S.trades++;
+    if(win){
+      const profit=Math.round(pos.stake*S.payout);
+      S.balance+=pos.stake+profit; S.wins++; S.streak++;
+      if(S.streak>S.bestStreak)S.bestStreak=S.streak;
+      S.rating+=25+Math.min(25,S.streak*3);
+      flash('+'+fmt(profit),true);
+      if(S.streak>0 && S.streak%3===0){const bonus=200*(S.streak/3);S.balance+=bonus;showStreak('🔥 Серия x'+S.streak+'! Бонус +'+fmt(bonus));}
+    } else { S.streak=0; S.rating=Math.max(0,S.rating-15); flash('−'+fmt(pos.stake),false); }
+    questProgress(win);
+    updateLevel(); renderBalance();
+    elPos.classList.remove('show'); setTradeEnabled(true);
+    if(S.balance<S.minStake) setTimeout(openBroke,700);
+    if(S.stake>S.balance){S.stake=clampStake(S.stake);renderStake();}
+    scheduleSave();
+  }
+  function setTradeEnabled(on){btnUp.disabled=!on;btnDown.disabled=!on;}
+  function updatePosChip(){
+    const pos=S.position; if(!pos)return;
+    const remain=Math.max(0,(pos.resolveAt-performance.now())/1000);
+    const winning=pos.dir==='up'?S.price>pos.entry:S.price<pos.entry;
+    elPos.innerHTML='Позиция: <span class="'+(pos.dir==='up'?'dir-up':'dir-down')+'">'+(pos.dir==='up'?'ВВЕРХ ↑':'ВНИЗ ↓')+'</span><br>'+
+      'Вход: '+fmtPrice(pos.entry)+'<br>Сейчас: <span style="color:'+(winning?'var(--up)':'var(--down)')+'">'+fmtPrice(S.price)+'</span><br>'+
+      'До итога: <span id="countdown">'+remain.toFixed(1)+'с</span>';
+  }
+
+  /* ================= ECONOMY ================= */
+  function clampStake(v){v=Math.floor(v||0);if(isNaN(v)||v<S.minStake)v=S.minStake;const cap=Math.max(S.minStake,S.balance);if(v>cap)v=cap;return v;}
+  function changeStake(dir){let step=S.stake>=1000?250:S.stake>=200?100:25;S.stake=clampStake(S.stake+dir*step);renderStake();scheduleSave();}
+  function commitStakeInput(){S.stake=clampStake(parseInt(elStakeInput.value.replace(/[^0-9]/g,'')||'0',10));renderStake();scheduleSave();}
+  function addCoins(n){S.balance+=n;renderBalance();if(S.balance>=S.minStake)closeBroke();scheduleSave();}
+
+  /* ================= RENDER ================= */
+  function renderBalance(){elBal.textContent=fmt(S.balance);}
+  function renderStake(){elStakeInput.value=fmt(S.stake);}
+  function updateLevel(){elLevel.textContent=1+Math.floor(S.trades/10);}
+  let startPrice=S.price;
+
+  function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function hexA(hex,a){hex=hex.replace('#','');if(hex.length===3)hex=hex.split('').map(c=>c+c).join('');
+    return `rgba(${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)},${a})`;}
+
+  function drawChart(){
+    ctx.clearRect(0,0,W,Hh); const h=S.history; if(h.length<2)return;
+    let min=Infinity,max=-Infinity; for(const p of h){if(p.price<min)min=p.price;if(p.price>max)max=p.price;}
+    if(S.position){min=Math.min(min,S.position.entry);max=Math.max(max,S.position.entry);}
+    const pad=(max-min)*0.15||max*0.01; min-=pad;max+=pad; const rng=(max-min)||1;
+    const padR=6,padL=6,padT=10,padB=10,plotW=W-padL-padR,plotH=Hh-padT-padB;
+    const x=i=>padL+(i/(WINDOW-1))*plotW, y=pr=>padT+(1-(pr-min)/rng)*plotH;
+    ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+    for(let g=0;g<=4;g++){const gy=padT+(g/4)*plotH;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(W-padR,gy);ctx.stroke();}
+    const offset=WINDOW-h.length, rising=h[h.length-1].price>=h[0].price, col=rising?getCSS('--up'):getCSS('--down');
+    if(S.position){const ey=y(S.position.entry);ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(255,194,60,.6)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(padL,ey);ctx.lineTo(W-padR,ey);ctx.stroke();ctx.setLineDash([]);}
+    const grad=ctx.createLinearGradient(0,padT,0,padT+plotH);grad.addColorStop(0,hexA(col,0.22));grad.addColorStop(1,hexA(col,0));
+    ctx.beginPath();ctx.moveTo(x(offset),y(h[0].price));for(let i=0;i<h.length;i++)ctx.lineTo(x(offset+i),y(h[i].price));
+    ctx.lineTo(x(offset+h.length-1),padT+plotH);ctx.lineTo(x(offset),padT+plotH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+    ctx.beginPath();ctx.moveTo(x(offset),y(h[0].price));for(let i=1;i<h.length;i++)ctx.lineTo(x(offset+i),y(h[i].price));
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.lineJoin='round';ctx.shadowColor=hexA(col,.5);ctx.shadowBlur=8;ctx.stroke();ctx.shadowBlur=0;
+    const lx=x(offset+h.length-1),ly=y(h[h.length-1].price);
+    ctx.beginPath();ctx.arc(lx,ly,4,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+    ctx.beginPath();ctx.arc(lx,ly,7,0,Math.PI*2);ctx.strokeStyle=hexA(col,.4);ctx.lineWidth=1.5;ctx.stroke();
+  }
+  function renderTicker(){elPrice.textContent=fmtPrice(S.price);const pct=((S.price-startPrice)/startPrice)*100;
+    elChg.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';elChg.className='chg '+(pct>=0?'up':'down');}
+
+  /* ================= PROFILE ================= */
+  function renderProfile(animate){
+    const r=getRank(S.rating);
+    $('rankIcon').textContent=r.cur.icon; $('rankName').textContent=r.cur.name; $('mmr').textContent=fmt(S.rating);
+    $('rankNext').innerHTML=r.next?'До ранга «'+r.next.name+'»: <b>'+fmt(r.ceil-S.rating)+'</b> рейтинга':'Максимальный ранг достигнут 👑';
+    const setW=()=>{$('rankFill').style.width=Math.round(r.pct*100)+'%';};
+    if(animate){$('rankFill').style.width='0%';requestAnimationFrame(()=>requestAnimationFrame(setW));}else setW();
+    $('stTrades').textContent=fmt(S.trades);$('stWin').textContent=(S.trades?Math.round(S.wins/S.trades*100):0)+'%';$('stBest').textContent=fmt(S.bestStreak);
+    const av=$('avatar');av.textContent=(S.nick.trim()[0]||'Т').toUpperCase();
+    av.style.background=`linear-gradient(135deg,hsl(${S.hue} 85% 62%),hsl(${(S.hue+50)%360} 85% 55%))`;
+    $('uid').textContent='ID '+S.uid; $('nick').value=S.nick;
+  }
+  function openProfile(){renderProfile(false);$('profileModal').classList.add('show');renderProfile(true);}
+
+  /* ================= DAILY ================= */
+  function todayStr(){return new Date().toISOString().slice(0,10);}
+  function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+  function checkDaily(){
+    const t=todayStr();
+    if(S.lastDay!==t){
+      if(S.lastDay && daysBetween(S.lastDay,t)===1) S.loginStreak=Math.min(7,S.loginStreak+1);
+      else S.loginStreak=1;
+      S.lastDay=t; S.dailyClaimed=false;
+      // новый день -> обновляем квесты
+      S.quests=freshQuests(); S.questDay=t;
+      scheduleSave();
+    }
+    if(!S.quests || S.questDay!==t){S.quests=freshQuests();S.questDay=t;}
+    updateBadges();
+  }
+  function renderDaily(){
+    $('dailySub').textContent='День '+S.loginStreak+' подряд. Заходи каждый день — награда растёт!';
+    const cal=$('cal');cal.innerHTML='';
+    DAILY_REWARDS.forEach((r,i)=>{
+      const dayNum=i+1; const claimed=(dayNum<S.loginStreak)||(dayNum===S.loginStreak&&S.dailyClaimed);
+      const today=dayNum===S.loginStreak && !S.dailyClaimed;
+      const d=document.createElement('div');
+      d.className='day'+(claimed?' claimed':'')+(today?' today':'');
+      d.innerHTML='<div class="d-n">День '+dayNum+'</div><div class="d-r">+'+fmt(r)+'</div>';
+      cal.appendChild(d);
+    });
+    const btn=$('claimDaily'), close=$('closeDaily');
+    if(S.dailyClaimed){btn.style.display='none';close.style.display='block';}
+    else{btn.style.display='block';close.style.display='none';}
+  }
+  function openDaily(){renderDaily();$('dailyModal').classList.add('show');}
+  function claimDaily(){
+    if(S.dailyClaimed)return;
+    const reward=DAILY_REWARDS[S.loginStreak-1]||DAILY_REWARDS[DAILY_REWARDS.length-1];
+    S.dailyClaimed=true; addCoins(reward); showStreak('🎁 Бонус дня +'+fmt(reward));
+    renderDaily(); updateBadges(); scheduleSave();
+  }
+
+  /* ================= QUESTS ================= */
+  function questProgress(win){
+    if(!S.quests)return;
+    for(const q of S.quests){
+      if(q.claimed)continue;
+      if(q.id==='trades')q.prog=Math.min(q.target,q.prog+1);
+      if(q.id==='wins'&&win)q.prog=Math.min(q.target,q.prog+1);
+      if(q.id==='streak')q.prog=Math.min(q.target,Math.max(q.prog,S.streak));
+    }
+    updateBadges();
+  }
+  function questReady(q){return !q.claimed && q.prog>=q.target;}
+  function renderQuests(){
+    const list=$('questList');list.innerHTML='';
+    for(const q of S.quests){
+      const ready=questReady(q), pct=Math.min(100,Math.round(q.prog/q.target*100));
+      const el=document.createElement('div');el.className='quest';
+      el.innerHTML=
+        '<div class="q-top"><div class="q-label">'+q.label+'</div><div class="q-reward">+'+fmt(q.reward)+' 🪙</div></div>'+
+        '<div class="q-bar"><div class="fill" style="width:'+pct+'%"></div></div>'+
+        '<div class="q-foot"><div class="q-prog">'+Math.min(q.prog,q.target)+' / '+q.target+'</div>'+
+        '<button class="q-claim '+(q.claimed?'claimed':(ready?'ready':''))+'" data-q="'+q.id+'" '+(ready?'':'disabled')+'>'+
+        (q.claimed?'Получено':(ready?'Забрать':'В процессе'))+'</button></div>';
+      list.appendChild(el);
+    }
+    list.querySelectorAll('.q-claim.ready').forEach(b=>b.onclick=()=>claimQuest(b.dataset.q));
+  }
+  function claimQuest(id){
+    const q=S.quests.find(x=>x.id===id); if(!q||!questReady(q))return;
+    q.claimed=true; addCoins(q.reward); showStreak('✅ Задание выполнено +'+fmt(q.reward));
+    renderQuests(); updateBadges(); scheduleSave();
+  }
+  function questsReadyCount(){return S.quests?S.quests.filter(questReady).length:0;}
+
+  function updateBadges(){
+    const db=$('dailyBadge'); if(!S.dailyClaimed){db.classList.add('show');db.textContent='1';}else db.classList.remove('show');
+    const qb=$('questBadge'); const n=questsReadyCount(); if(n>0){qb.classList.add('show');qb.textContent=n;}else qb.classList.remove('show');
+  }
+
+  /* ================= LEADERBOARD (демо-друзья + ты) ================= */
+  const DEMO_FRIENDS=[
+    {nick:'Кекс_на_бирже',rating:4200,hue:20},{nick:'ХодлерТаня',rating:3100,hue:300},
+    {nick:'Профит777',rating:2650,hue:130},{nick:'Слил_депо',rating:1900,hue:0},
+    {nick:'МаксТрейд',rating:1400,hue:210},{nick:'ЛунаМи',rating:900,hue:270},
+    {nick:'Дядя Стонкс',rating:600,hue:45}
+  ];
+  function renderLeaderboard(){
+    const list=$('leaderList');list.innerHTML='';
+    const rows=DEMO_FRIENDS.map(f=>({...f,you:false}));
+    rows.push({nick:S.nick,rating:S.rating,hue:S.hue,you:true});
+    rows.sort((a,b)=>b.rating-a.rating);
+    const medals=['🥇','🥈','🥉'];
+    rows.forEach((r,i)=>{
+      const el=document.createElement('div');el.className='lb-row'+(r.you?' you':'');
+      el.innerHTML='<div class="lb-rank">'+(medals[i]||(i+1))+'</div>'+
+        '<div class="lb-av" style="background:linear-gradient(135deg,hsl('+r.hue+' 85% 62%),hsl('+((r.hue+50)%360)+' 85% 55%))">'+(r.nick[0]||'?').toUpperCase()+'</div>'+
+        '<div class="lb-name">'+esc(r.nick)+(r.you?'<span class="tag">это ты</span>':'')+'</div>'+
+        '<div class="lb-score">'+fmt(r.rating)+'</div>';
+      list.appendChild(el);
+    });
+    const myPos=rows.findIndex(r=>r.you)+1;
+    $('lbNote').textContent = Platform.inVK
+      ? 'Твоё место среди друзей: '+myPos+' из '+rows.length
+      : 'Демо-соперники. В ВК тут будут твои реальные друзья (VK Bridge). Твоё место: '+myPos;
+  }
+  function esc(s){return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+  /* ================= SHARE ================= */
+  async function shareResult(){
+    const r=getRank(S.rating);
+    const text='📈 МемКойн Трейдинг — я '+r.cur.name+', рейтинг '+fmt(S.rating)+', лучшая серия x'+S.bestStreak+'! Обгони меня 🚀';
+    await Platform.shareStory(text);
+  }
+
+  /* ================= AD / STORE ================= */
+  async function watchAd(btn,reward){
+    const orig=btn.textContent; btn.disabled=true; btn.textContent='Реклама…';
+    const ok=await Platform.rewarded();
+    btn.disabled=false; btn.textContent=orig;
+    if(ok) addCoins(reward);
+  }
+  async function buyPack(packEl){
+    const add=+packEl.dataset.add;
+    const ok=await Platform.pay({item:'coins_'+add, add});
+    if(ok){ addCoins(add); closeStore(); }
+  }
+
+  /* ================= MODALS ================= */
+  function openBroke(){if(S.balance>=S.minStake)return;$('brokeModal').classList.add('show');}
+  function closeBroke(){$('brokeModal').classList.remove('show');}
+  function openStore(){$('storeModal').classList.add('show');}
+  function closeStore(){$('storeModal').classList.remove('show');}
+
+  /* ================= LOOP ================= */
+  function loop(now){
+    if(now-S.lastTick>=TICK){S.lastTick=now;stepPrice();updateGauge();}
+    drawChart(); renderTicker();
+    if(S.position){updatePosChip();if(now>=S.position.resolveAt)resolve();}
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= INIT ================= */
+  async function init(){
+    resize();
+    await Platform.init();
+    await load();
+    // подтянуть имя/аватар-хью из ВК, если внутри ВК и ник ещё дефолтный
+    const u=await Platform.getUser();
+    if(u && (S.nick==='Трейдер')){ S.nick=u.first_name||'Трейдер'; }
+
+    // seed graph
+    const seed=[]; let p=S.price;
+    for(let i=0;i<WINDOW;i++){p*=(1+gauss()*0.0015);seed.push({price:p});}
+    S.history=seed; S.price=p; startPrice=S.history[0].price;
+
+    checkDaily();
+    renderBalance(); renderStake(); updateLevel();
+
+    // wiring
+    $('expSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+      [...b.parentNode.children].forEach(x=>x.classList.remove('active'));b.classList.add('active');S.expMs=+b.dataset.ms;});
+    $('plus').onclick=()=>changeStake(1); $('minus').onclick=()=>changeStake(-1);
+    btnUp.onclick=()=>place('up'); btnDown.onclick=()=>place('down');
+    elStakeInput.addEventListener('focus',()=>{$('amtBox').classList.add('editing');elStakeInput.value=String(S.stake);elStakeInput.select();});
+    elStakeInput.addEventListener('input',()=>{elStakeInput.value=elStakeInput.value.replace(/[^0-9]/g,'');});
+    elStakeInput.addEventListener('blur',()=>{$('amtBox').classList.remove('editing');commitStakeInput();});
+    elStakeInput.addEventListener('keydown',e=>{if(e.key==='Enter')elStakeInput.blur();});
+
+    $('balanceBtn').onclick=openStore; $('profileBtn').onclick=openProfile;
+    $('navDaily').onclick=openDaily;
+    $('navQuests').onclick=()=>{renderQuests();$('questModal').classList.add('show');};
+    $('navLeader').onclick=()=>{renderLeaderboard();$('leaderModal').classList.add('show');};
+    $('navShare').onclick=shareResult;
+
+    $('watchAd').onclick=e=>watchAd(e.target,500);
+    $('openStore2').onclick=()=>{closeBroke();openStore();};
+    $('storeAd').onclick=e=>watchAd(e.target,750);
+    $('closeStore').onclick=closeStore;
+    document.querySelectorAll('.pack').forEach(p=>p.onclick=()=>buyPack(p));
+
+    $('claimDaily').onclick=claimDaily; $('closeDaily').onclick=()=>$('dailyModal').classList.remove('show');
+    $('closeQuests').onclick=()=>$('questModal').classList.remove('show');
+    $('closeLeader').onclick=()=>$('leaderModal').classList.remove('show');
+    $('closeProfile').onclick=()=>$('profileModal').classList.remove('show');
+    $('nick').addEventListener('input',e=>{S.nick=e.target.value||'Трейдер';});
+    $('nick').addEventListener('blur',()=>{if(!S.nick.trim()){S.nick='Трейдер';$('nick').value='Трейдер';}renderProfile(false);scheduleSave();});
+
+    document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+
+    // авто-показ ежедневного бонуса при новом дне
+    if(!S.dailyClaimed) setTimeout(openDaily,500);
+
+    requestAnimationFrame(loop);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
