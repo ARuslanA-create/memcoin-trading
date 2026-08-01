@@ -316,42 +316,48 @@
      В превью/браузере автоматически включаются заглушки, чтобы файл был играбелен.
      В продакшене: подключи vk-bridge (npm @vkontakte/vk-bridge или browser.min.js). */
   const bridge = window.vkBridge || null;
+  // ВНУТРИ ВК только если приложение реально запущено из ВК: в URL есть параметры запуска
+  // (vk_app_id / vk_platform). В обычном браузере (GitHub Pages) vkBridge может быть загружен,
+  // но VK-хоста нет, и bridge.send() зависает. Поэтому детектим окружение по параметрам.
+  const vkParams = new URLSearchParams(location.search);
+  const inVK = !!bridge && (vkParams.has('vk_app_id') || vkParams.has('vk_platform'));
+  const mem={}; const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  function sendVK(method,params){ // с таймаутом, чтобы мост никогда не подвешивал игру
+    return Promise.race([ bridge.send(method,params||{}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('vk timeout')),4000)) ]);
+  }
   const Platform = {
-    inVK: !!bridge,
-    async init(){ if(bridge){ try{ await bridge.send('VKWebAppInit'); }catch(e){} } },
-    async getUser(){
-      if(bridge){ try{ return await bridge.send('VKWebAppGetUserInfo'); }catch(e){} }
-      return null; // fallback -> демо-профиль
-    },
+    inVK,
+    async init(){ if(inVK){ try{ await sendVK('VKWebAppInit'); }catch(e){} } },
+    async getUser(){ if(inVK){ try{ return await sendVK('VKWebAppGetUserInfo'); }catch(e){} } return null; },
     async storageGet(key){
-      if(bridge){ try{ const r=await bridge.send('VKWebAppStorageGet',{keys:[key]});
+      if(inVK){ try{ const r=await sendVK('VKWebAppStorageGet',{keys:[key]});
         return r.keys && r.keys[0] ? r.keys[0].value : ''; }catch(e){} }
       try{ return localStorage.getItem(key)||''; }catch(e){ return mem[key]||''; }
     },
     async storageSet(key,value){
-      if(bridge){ try{ await bridge.send('VKWebAppStorageSet',{key,value}); return; }catch(e){} }
+      if(inVK){ try{ await sendVK('VKWebAppStorageSet',{key,value}); return; }catch(e){} }
       try{ localStorage.setItem(key,value); }catch(e){ mem[key]=value; }
     },
     async rewarded(){ // возвращает true если ролик досмотрен
-      if(bridge){ try{ const r=await bridge.send('VKWebAppShowNativeAds',{ad_format:'reward'}); return !!r.result; }catch(e){ return false; } }
+      if(inVK){ try{ const r=await sendVK('VKWebAppShowNativeAds',{ad_format:'reward'}); return !!r.result; }catch(e){ return false; } }
       await wait(2000); return true; // fallback: имитация
     },
-    async interstitial(){ if(bridge){ try{ await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
+    async interstitial(){ if(inVK){ try{ await sendVK('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
     async pay(pack){
       // В ВК покупка монет идёт через настроенный магазин товаров / VK Pay (VKWebAppShowOrderBox).
-      if(bridge){ try{ const r=await bridge.send('VKWebAppShowOrderBox',{type:'item',item:pack.item});
+      if(inVK){ try{ const r=await sendVK('VKWebAppShowOrderBox',{type:'item',item:pack.item});
         return r.success; }catch(e){ return false; } }
       await wait(400); return true; // fallback: демо-покупка
     },
     async shareStory(text){
-      if(bridge){ try{ await bridge.send('VKWebAppShowStoryBox',{
+      if(inVK){ try{ await sendVK('VKWebAppShowStoryBox',{
         background_type:'none',
         stickers:[{sticker_type:'renderable',sticker:{content_type:'text',text:text,style:'classic'}}]
       }); return true; }catch(e){ return false; } }
       toast('История: "'+text+'"'); return true; // fallback
     }
   };
-  const mem={}; const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   /* ================= STATE ================= */
   const S = {
@@ -679,10 +685,10 @@
   /* ================= INIT ================= */
   async function init(){
     resize();
-    await Platform.init();
-    await load();
-    // подтянуть имя/аватар-хью из ВК, если внутри ВК и ник ещё дефолтный
-    const u=await Platform.getUser();
+    // мост и загрузка не должны блокировать запуск игры — оборачиваем в try/catch
+    try{ await Platform.init(); }catch(e){}
+    try{ await load(); }catch(e){}
+    let u=null; try{ u=await Platform.getUser(); }catch(e){}
     if(u && (S.nick==='Трейдер')){ S.nick=u.first_name||'Трейдер'; }
 
     // seed graph
