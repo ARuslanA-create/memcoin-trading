@@ -339,16 +339,15 @@
       if(inVK){ try{ await sendVK('VKWebAppStorageSet',{key,value}); return; }catch(e){} }
       try{ localStorage.setItem(key,value); }catch(e){ mem[key]=value; }
     },
-    async rewarded(){ // true, если реклама показалась и ВК не вернул явный отказ
+    async rewarded(){ // реклама длится 15–30с — БЕЗ таймаута, ждём реального завершения
       if(inVK){ try{
-        const r=await sendVK('VKWebAppShowNativeAds',{ad_format:'reward'});
-        // разные версии ВК возвращают {result:true}, {} или {result:'success'};
-        // отказ = явный false. Всё остальное считаем просмотром.
+        const r=await bridge.send('VKWebAppShowNativeAds',{ad_format:'reward'});
+        toast('ad: '+JSON.stringify(r));                       // временная диагностика
         return !(r && r.result===false);
-      }catch(e){ return false; } }
-      await wait(2000); return true; // fallback: имитация вне ВК
+      }catch(e){ toast('ad err: '+JSON.stringify(e&&e.error_data||e&&e.message||e)); return false; } }
+      await wait(2000); return true; // fallback вне ВК
     },
-    async interstitial(){ if(inVK){ try{ await sendVK('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
+    async interstitial(){ if(inVK){ try{ await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
     async pay(pack){
       // В ВК покупка монет идёт через настроенный магазин товаров / VK Pay (VKWebAppShowOrderBox).
       if(inVK){ try{ const r=await sendVK('VKWebAppShowOrderBox',{type:'item',item:pack.item});
