@@ -16,7 +16,9 @@
   html,body{margin:0;height:100%}
   body{background:radial-gradient(1200px 600px at 50% -10%,#101a26 0%,var(--bg) 55%);
     color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
-  .app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:10px 12px 16px;gap:9px}
+  .app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;gap:9px;
+    padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+  .app.vk-mobile{padding-top:calc(54px + env(safe-area-inset-top))}
 
   .topbar{display:flex;align-items:center;gap:10px}
   .logo{font-weight:800;letter-spacing:-.02em;font-size:16px;line-height:1}
@@ -164,6 +166,16 @@
   .lb-name .tag{color:var(--gold);font-size:11px;margin-left:6px}
   .lb-score{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:14px}
   .lb-note{font-size:10px;color:var(--muted);margin-top:10px}
+  .onb{text-align:center}
+  .onb-emoji{font-size:52px;line-height:1;margin:4px 0 6px}
+  .onb-text{color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 14px;min-height:66px}
+  .onb-dots{display:flex;gap:7px;justify-content:center;margin-bottom:14px}
+  .onb-dots i{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.2s}
+  .onb-dots i.on{background:var(--gold);width:20px;border-radius:4px}
+  .onb-next{background:linear-gradient(180deg,var(--up),var(--up-dim));color:#04140d;border:none;
+    border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer;width:100%}
+  .onb-next:active{transform:scale(.98)}
+  .onb-skip{background:none;border:none;color:var(--muted);font-size:13px;margin-top:10px;cursor:pointer;width:100%}
 </style>
 </head>
 <body>
@@ -236,20 +248,26 @@
   <h2>Монеты кончились 😅</h2>
   <p>Не беда — рынок никуда не денется. Забери бесплатные монеты и продолжай.</p>
   <button class="wide primary" id="watchAd">Смотреть рекламу +500</button>
-  <button class="wide ghost" id="openStore2">Магазин монет</button>
+  <button class="wide ghost" id="openStore2">Получить монеты</button>
 </div></div>
 
 <!-- store -->
 <div class="modal-bg" id="storeModal"><div class="modal">
-  <h2>Магазин монет</h2>
+  <h2>Получить монеты</h2>
   <button class="wide ghost ad-btn" id="storeAd">▶ Смотреть рекламу → +750</button>
   <div class="store-div"></div>
-  <div class="pack" data-add="2500"><span class="p-amt">🪙 2 500</span><span class="p-price rub">149 ₽</span></div>
-  <div class="pack" data-add="8000"><span class="p-amt">🪙 8 000<span class="p-tag">ПОПУЛЯРНЫЙ</span></span><span class="p-price rub">399 ₽</span></div>
-  <div class="pack" data-add="20000"><span class="p-amt">🪙 20 000</span><span class="p-price rub">799 ₽</span></div>
-  <div class="pack" data-add="60000"><span class="p-amt">🪙 60 000<span class="p-tag">ВЫГОДНЫЙ</span></span><span class="p-price rub">1 990 ₽</span></div>
+  <div class="store-note">Смотри рекламу и получай монеты бесплатно. Заходи каждый день за ежедневным бонусом 🎁. Монеты игровые — вывод и обмен на деньги невозможны.</div>
   <button class="wide ghost" id="closeStore">Закрыть</button>
-  <div class="store-note">Демо-режим: оплата не производится. В ВК — покупка через VK Pay, монеты за rewarded-рекламу.</div>
+</div></div>
+
+<!-- onboarding -->
+<div class="modal-bg" id="onboard"><div class="modal onb">
+  <div class="onb-emoji" id="onbEmoji">📈</div>
+  <h2 id="onbTitle">Добро пожаловать!</h2>
+  <p class="onb-text" id="onbText"></p>
+  <div class="onb-dots" id="onbDots"></div>
+  <button class="wide onb-next" id="onbNext">Далее →</button>
+  <button class="onb-skip" id="onbSkip">Пропустить</button>
 </div></div>
 
 <!-- profile -->
@@ -321,6 +339,8 @@
   // но VK-хоста нет, и bridge.send() зависает. Поэтому детектим окружение по параметрам.
   const vkParams = new URLSearchParams(location.search);
   const inVK = !!bridge && (vkParams.has('vk_app_id') || vkParams.has('vk_platform'));
+  const vkPlatform = vkParams.get('vk_platform') || '';
+  const vkMobile = /mobile|android|iphone|ipad/i.test(vkPlatform);
   const mem={}; const wait=ms=>new Promise(r=>setTimeout(r,ms));
   function sendVK(method,params){ // с таймаутом, чтобы мост никогда не подвешивал игру
     return Promise.race([ bridge.send(method,params||{}),
@@ -342,9 +362,8 @@
     async rewarded(){ // реклама длится 15–30с — БЕЗ таймаута, ждём реального завершения
       if(inVK){ try{
         const r=await bridge.send('VKWebAppShowNativeAds',{ad_format:'reward'});
-        toast('ad: '+JSON.stringify(r));                       // временная диагностика
-        return !(r && r.result===false);
-      }catch(e){ toast('ad err: '+JSON.stringify(e&&e.error_data||e&&e.message||e)); return false; } }
+        return !(r && r.result===false); // начисляем, если ВК не вернул явный отказ
+      }catch(e){ return false; } }
       await wait(2000); return true; // fallback вне ВК
     },
     async interstitial(){ if(inVK){ try{ await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
@@ -354,12 +373,15 @@
         return r.success; }catch(e){ return false; } }
       await wait(400); return true; // fallback: демо-покупка
     },
-    async shareStory(text){
-      if(inVK){ try{ await sendVK('VKWebAppShowStoryBox',{
-        background_type:'none',
-        stickers:[{sticker_type:'renderable',sticker:{content_type:'text',text:text,style:'classic'}}]
-      }); return true; }catch(e){ return false; } }
-      toast('История: "'+text+'"'); return true; // fallback
+    async share(text){
+      if(inVK){
+        try{ const r=await sendVK('VKWebAppShare',{link:location.href}); return !(r&&r.result===false); }catch(e){}
+        try{ await sendVK('VKWebAppShowStoryBox',{
+          background_type:'none',
+          stickers:[{sticker_type:'renderable',sticker:{content_type:'text',text:text,style:'classic'}}]
+        }); return true; }catch(e){ return false; }
+      }
+      toast('Поделиться: "'+text+'"'); return true; // fallback вне ВК
     }
   };
 
@@ -657,7 +679,7 @@
   async function shareResult(){
     const r=getRank(S.rating);
     const text='📈 МемКойн Трейдинг — я '+r.cur.name+', рейтинг '+fmt(S.rating)+', лучшая серия x'+S.bestStreak+'! Обгони меня 🚀';
-    await Platform.shareStory(text);
+    await Platform.share(text);
   }
 
   /* ================= AD / STORE ================= */
@@ -671,6 +693,7 @@
     const add=+packEl.dataset.add;
     const ok=await Platform.pay({item:'coins_'+add, add});
     if(ok){ addCoins(add); closeStore(); }
+    else { toast('Оплата недоступна. Попробуйте позже.'); }
   }
 
   /* ================= MODALS ================= */
@@ -735,10 +758,37 @@
 
     document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
 
-    // авто-показ ежедневного бонуса при новом дне
-    if(!S.dailyClaimed) setTimeout(openDaily,500);
+    // онбординг
+    $('onbNext').onclick=()=>{ if(onbI<ONB.length-1){ onbI++; renderOnb(); } else finishOnboarding(); };
+    $('onbSkip').onclick=finishOnboarding;
+
+    // запас сверху под кнопки ВК на мобильных
+    if(inVK && vkMobile){ const a=document.querySelector('.app'); if(a) a.classList.add('vk-mobile'); }
+
+    // первый запуск — показать обучение; иначе ежедневный бонус
+    let onbFlag=''; try{ onbFlag=await Platform.storageGet('mc_onboarded'); }catch(e){}
+    if(!onbFlag){ showOnboarding(); }
+    else if(!S.dailyClaimed){ setTimeout(openDaily,500); }
 
     requestAnimationFrame(loop);
+  }
+
+  /* ================= ONBOARDING ================= */
+  const ONB=[
+    {e:'📈',t:'Добро пожаловать!',x:'МемКойн Трейдинг — это симулятор биржи на игровые монеты. Монеты виртуальные: вывод и обмен на реальные деньги невозможны.'},
+    {e:'🔮',t:'Читай рынок',x:'Смотри на график цены и шкалу «Давление рынка». Выбери время экспирации (от 5 сек до 5 мин) и размер ставки.'},
+    {e:'🎯',t:'Делай прогноз',x:'Жми ВВЕРХ, если ждёшь роста, или ВНИЗ — если падения. Угадал направление к концу времени — получаешь +92% к ставке. Удачи!'}
+  ];
+  let onbI=0;
+  function renderOnb(){ const s=ONB[onbI];
+    $('onbEmoji').textContent=s.e; $('onbTitle').textContent=s.t; $('onbText').textContent=s.x;
+    $('onbDots').innerHTML=ONB.map((_,i)=>'<i class="'+(i===onbI?'on':'')+'"></i>').join('');
+    $('onbNext').textContent = onbI<ONB.length-1 ? 'Далее →' : 'Начать игру 🚀';
+  }
+  function showOnboarding(){ onbI=0; renderOnb(); $('onboard').classList.add('show'); }
+  function finishOnboarding(){ $('onboard').classList.remove('show');
+    try{ Platform.storageSet('mc_onboarded','1'); }catch(e){}
+    if(!S.dailyClaimed) setTimeout(openDaily,400);
   }
   init();
 })();
