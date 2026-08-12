@@ -13,12 +13,18 @@
     --sans:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
+  /* min-height, а не height: контент выше вьюпорта должен прокручиваться, а не обрезаться */
+  html,body{margin:0;min-height:100%}
   body{background:radial-gradient(1200px 600px at 50% -10%,#101a26 0%,var(--bg) 55%);
     color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+  /* --vk-top/--vk-bottom: отступы под системные кнопки ВК, заполняются из VKWebAppGetConfig.
+     Значения по умолчанию — на случай, если конфиг недоступен. */
+  :root{--vk-top:0px;--vk-bottom:0px}
+  /* min-height, а не height: если интерфейс не влезает даже при минимальном графике,
+     контейнер должен вырасти и дать странице прокрутку. С фиксированной height дети
+     переполняли padding-bottom и дисклеймер уезжал под системные кнопки. */
   .app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;gap:9px;
-    padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
-  .app.vk-mobile{padding-top:calc(54px + env(safe-area-inset-top))}
+    padding:calc(10px + var(--vk-top) + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(20px + var(--vk-bottom) + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
 
   .topbar{display:flex;align-items:center;gap:10px}
   .logo{font-weight:800;letter-spacing:-.02em;font-size:16px;line-height:1}
@@ -50,7 +56,9 @@
 
   .chart-wrap{position:relative;background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
     border:1px solid var(--border);border-radius:14px;overflow:hidden;flex:1;min-height:220px}
-  canvas{display:block;width:100%;height:100%}
+  /* Абсолютное позиционирование обязательно: в потоке canvas подпирал .chart-wrap
+     своей height-атрибутной высотой, график не мог сжаться и низ интерфейса уезжал за экран. */
+  canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
   .event-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%) translateY(-6px);font-weight:800;font-size:15px;
     padding:6px 14px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
   .event-banner.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -73,7 +81,7 @@
   .controls{display:flex;flex-direction:column;gap:9px}
   .seg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
   .seg{display:flex;gap:6px;flex-wrap:wrap}
-  .seg button{flex:1;min-width:52px;background:var(--panel);border:1px solid var(--border);color:var(--text);
+  .seg button{flex:1;min-width:44px;background:var(--panel);border:1px solid var(--border);color:var(--text);
     font-family:var(--mono);font-size:13px;font-weight:600;padding:9px 4px;border-radius:9px;cursor:pointer;transition:.12s}
   .seg button.active{border-color:var(--gold);background:rgba(255,194,60,.1);color:var(--gold)}
   .seg button:active{transform:scale(.97)}
@@ -93,6 +101,28 @@
   .trade .payout{display:block;font-size:11px;font-weight:600;opacity:.8;margin-top:2px}
   .footnote{font-size:10px;color:var(--muted);text-align:center;line-height:1.5;padding:2px 8px}
 
+  /* На невысоких экранах интерфейс обязан уместиться целиком: график отдаёт свою
+     высоту (он flex:1), отступы и промежутки сжимаются. Без этого нижняя зона —
+     ставка, кнопки сделки и дисклеймер — уходит за границу экрана. */
+  @media (max-height:760px){
+    .app{gap:6px;
+      padding-top:calc(6px + var(--vk-top) + env(safe-area-inset-top));
+      padding-bottom:calc(10px + var(--vk-bottom) + env(safe-area-inset-bottom))}
+    .chart-wrap{min-height:120px}
+    .pressure{padding:7px 12px}
+    .pressure .row{margin-bottom:5px}
+    .hint{margin-top:4px}
+    .controls{gap:7px}
+    .seg button{padding:7px 4px}
+    .trade button{padding:13px 0}
+  }
+  /* Совсем низкие экраны (320x568 и подобные): график ужимается до минимума,
+     подпись над выбором экспирации убирается — сами кнопки «5с…5м» говорят за себя. */
+  @media (max-height:620px){
+    .chart-wrap{min-height:96px}
+    .seg-label{display:none}
+  }
+
   .flash{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.9);font-weight:800;font-size:30px;font-family:var(--mono);
     opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;text-shadow:0 4px 20px rgba(0,0,0,.5);z-index:20}
   .flash.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
@@ -101,21 +131,16 @@
     border:1px solid var(--meme);color:var(--meme);font-weight:700;font-size:13px;padding:7px 14px;border-radius:999px;transition:.25s;z-index:15;pointer-events:none}
   .streak.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  .modal-bg{position:fixed;inset:0;background:rgba(5,8,12,.72);display:none;align-items:center;justify-content:center;z-index:30;padding:20px;backdrop-filter:blur(3px)}
+  .modal-bg{position:fixed;inset:0;background:rgba(5,8,12,.72);display:none;align-items:center;justify-content:center;z-index:30;
+    padding:calc(20px + var(--vk-top) + env(safe-area-inset-top)) 20px calc(20px + var(--vk-bottom) + env(safe-area-inset-bottom));backdrop-filter:blur(3px)}
   .modal-bg.show{display:flex}
-  .modal{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px 20px;max-width:360px;width:100%;text-align:center;max-height:88vh;overflow:auto}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px 20px;max-width:360px;width:100%;text-align:center;max-height:100%;overflow:auto}
   .modal h2{margin:0 0 6px;font-size:19px}
   .modal p{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.5}
   .modal button.wide{width:100%;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
   .primary{background:linear-gradient(180deg,#38f7ad,var(--up-dim));color:#06110c}
   .ghost{background:var(--panel-2);border:1px solid var(--border)!important;color:var(--text)}
 
-  .pack{display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
-  .pack:active{transform:scale(.98)}
-  .pack .p-amt{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:16px}
-  .pack .p-price{font-size:12px;color:var(--muted);background:var(--panel);padding:4px 9px;border-radius:8px}
-  .pack .p-price.rub{color:var(--gold);background:rgba(255,194,60,.12);font-weight:700}
-  .p-tag{font-size:10px;color:var(--meme);font-weight:700;margin-left:6px}
   .ad-btn{display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(46,230,160,.1);border:1px solid var(--up-dim)!important;color:var(--up)!important;font-weight:700;margin-bottom:12px}
   .store-div{height:1px;background:var(--border);margin:6px 0 12px}
   .store-note{font-size:10px;color:var(--muted);margin-top:10px}
@@ -166,16 +191,29 @@
   .lb-name .tag{color:var(--gold);font-size:11px;margin-left:6px}
   .lb-score{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:14px}
   .lb-note{font-size:10px;color:var(--muted);margin-top:10px}
-  .onb{text-align:center}
-  .onb-emoji{font-size:52px;line-height:1;margin:4px 0 6px}
-  .onb-text{color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 14px;min-height:66px}
-  .onb-dots{display:flex;gap:7px;justify-content:center;margin-bottom:14px}
-  .onb-dots i{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.2s}
-  .onb-dots i.on{background:var(--gold);width:20px;border-radius:4px}
-  .onb-next{background:linear-gradient(180deg,var(--up),var(--up-dim));color:#04140d;border:none;
-    border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer;width:100%}
-  .onb-next:active{transform:scale(.98)}
-  .onb-skip{background:none;border:none;color:var(--muted);font-size:13px;margin-top:10px;cursor:pointer;width:100%}
+  /* обучение: подсветка реальных элементов интерфейса */
+  .tour{position:fixed;inset:0;z-index:40;display:none;pointer-events:none}
+  .tour.show{display:block}
+  /* Четыре блокирующих прямоугольника вокруг подсветки: клики доходят только
+     до подсвеченного элемента, а по остальному интерфейсу промахнуться нельзя */
+  .tour-block{position:absolute;pointer-events:auto}
+  .tour-hole{position:absolute;left:50%;top:50%;width:0;height:0;border-radius:14px;border:2px solid var(--gold);
+    box-shadow:0 0 0 9999px rgba(5,8,12,.82);transition:left .28s,top .28s,width .28s,height .28s}
+  .tour-hole.blank{border-color:transparent}
+  .tour-card{position:absolute;left:50%;transform:translateX(-50%);width:min(340px,calc(100vw - 32px));
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:15px 16px 13px;
+    pointer-events:auto;box-shadow:0 12px 40px rgba(0,0,0,.55)}
+  .tour-card.center{top:50%;transform:translate(-50%,-50%)}
+  .tour-card h3{margin:0 0 6px;font-size:17px}
+  .tour-card p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.5}
+  .tour-step{font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.05em;margin-bottom:5px}
+  .tour-foot{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .tour-skip{flex:1;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-align:left;padding:0}
+  .tour-skip:hover{color:var(--text)}
+  .tour-next{background:linear-gradient(180deg,#38f7ad,var(--up-dim));color:#06110c;border:none;border-radius:10px;
+    padding:11px 18px;font-weight:800;font-size:14px;cursor:pointer}
+  .tour-next:active{transform:scale(.97)}
+  .tour-wait{color:var(--gold);font-weight:700;font-size:13px;margin-top:12px;text-align:center}
 </style>
 </head>
 <body>
@@ -260,15 +298,24 @@
   <button class="wide ghost" id="closeStore">Закрыть</button>
 </div></div>
 
-<!-- onboarding -->
-<div class="modal-bg" id="onboard"><div class="modal onb">
-  <div class="onb-emoji" id="onbEmoji">📈</div>
-  <h2 id="onbTitle">Добро пожаловать!</h2>
-  <p class="onb-text" id="onbText"></p>
-  <div class="onb-dots" id="onbDots"></div>
-  <button class="wide onb-next" id="onbNext">Далее →</button>
-  <button class="onb-skip" id="onbSkip">Пропустить</button>
-</div></div>
+<!-- обучение -->
+<div class="tour" id="tour">
+  <div class="tour-block" id="tbTop"></div>
+  <div class="tour-block" id="tbRight"></div>
+  <div class="tour-block" id="tbBottom"></div>
+  <div class="tour-block" id="tbLeft"></div>
+  <div class="tour-hole blank" id="tourHole"></div>
+  <div class="tour-card center" id="tourCard">
+    <div class="tour-step" id="tourStep"></div>
+    <h3 id="tourTitle"></h3>
+    <p id="tourText"></p>
+    <div class="tour-wait" id="tourWait" style="display:none"></div>
+    <div class="tour-foot" id="tourFoot">
+      <button class="tour-skip" id="tourSkip">Пропустить обучение</button>
+      <button class="tour-next" id="tourNext">Далее →</button>
+    </div>
+  </div>
+</div>
 
 <!-- profile -->
 <div class="modal-bg" id="profileModal"><div class="modal">
@@ -292,6 +339,7 @@
     <div class="stat"><div class="v" id="stWin">0%</div><div class="l">винрейт</div></div>
     <div class="stat"><div class="v" id="stBest">0</div><div class="l">лучшая серия</div></div>
   </div>
+  <button class="wide ghost" id="replayTour">Пройти обучение заново</button>
   <button class="wide ghost" id="closeProfile">Закрыть</button>
 </div></div>
 
@@ -314,8 +362,8 @@
 
 <!-- leaderboard -->
 <div class="modal-bg" id="leaderModal"><div class="modal">
-  <h2>Рейтинг друзей 🏆</h2>
-  <p>Топ по рейтингу трейдера за неделю.</p>
+  <h2>Рейтинг трейдеров 🏆</h2>
+  <p>Твоё место среди соперников-ботов по рейтингу трейдера.</p>
   <div id="leaderList"></div>
   <div class="lb-note" id="lbNote"></div>
   <button class="wide ghost" id="closeLeader">Закрыть</button>
@@ -341,10 +389,18 @@
   const inVK = !!bridge && (vkParams.has('vk_app_id') || vkParams.has('vk_platform'));
   const vkPlatform = vkParams.get('vk_platform') || '';
   const vkMobile = /mobile|android|iphone|ipad/i.test(vkPlatform);
+  const vkAppId = vkParams.get('vk_app_id') || '';
+  const appLink = vkAppId ? 'https://vk.com/app'+vkAppId : location.href;
   const mem={}; const wait=ms=>new Promise(r=>setTimeout(r,ms));
-  function sendVK(method,params){ // с таймаутом, чтобы мост никогда не подвешивал игру
+  // Таймаут только для служебных вызовов, чтобы мост не подвешивал запуск игры.
+  // Методы, открывающие диалог (шер, реклама, оплата), ждут пользователя и таймаут ломает их.
+  function sendVK(method,params){
     return Promise.race([ bridge.send(method,params||{}),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('vk timeout')),4000)) ]);
+  }
+  function userDenied(e){
+    const d=e&&e.error_data||{}; const reason=String(d.error_reason||d.error_msg||'');
+    return d.error_code===4 || /denied|cancel|отмен/i.test(reason);
   }
   const Platform = {
     inVK,
@@ -366,24 +422,49 @@
       }catch(e){ return false; } }
       await wait(2000); return true; // fallback вне ВК
     },
-    async interstitial(){ if(inVK){ try{ await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'}); }catch(e){} } },
-    async pay(pack){
-      // В ВК покупка монет идёт через настроенный магазин товаров / VK Pay (VKWebAppShowOrderBox).
-      if(inVK){ try{ const r=await sendVK('VKWebAppShowOrderBox',{type:'item',item:pack.item});
-        return r.success; }catch(e){ return false; } }
-      await wait(400); return true; // fallback: демо-покупка
-    },
+    // Диалог шера ждёт действия пользователя — вызываем bridge.send напрямую, без таймаута.
+    // Возвращает 'ok' | 'cancel' | 'fail', чтобы отказ пользователя не выглядел как ошибка.
     async share(text){
       if(inVK){
-        try{ const r=await sendVK('VKWebAppShare',{link:location.href}); return !(r&&r.result===false); }catch(e){}
-        try{ await sendVK('VKWebAppShowStoryBox',{
-          background_type:'none',
-          stickers:[{sticker_type:'renderable',sticker:{content_type:'text',text:text,style:'classic'}}]
-        }); return true; }catch(e){ return false; }
+        try{ await bridge.send('VKWebAppShare',{link:appLink}); return 'ok'; }
+        catch(e){
+          if(userDenied(e)) return 'cancel';
+          try{ await bridge.send('VKWebAppShowWallPostBox',{message:text+'\n'+appLink}); return 'ok'; }
+          catch(e2){ return userDenied(e2)?'cancel':'fail'; }
+        }
       }
-      toast('Поделиться: "'+text+'"'); return true; // fallback вне ВК
+      toast('Поделиться: "'+text+'"'); return 'ok'; // fallback вне ВК
     }
   };
+
+  /* ================= VK INSETS =================
+     ВК сообщает зоны, занятые его собственным интерфейсом (кнопки «···» и «✕» сверху).
+     Без учёта этих зон хедер игры оказывается под ними, а низ экрана обрезается —
+     оба замечания уже приходили от модерации. */
+  function toCssPx(v){
+    if(typeof v!=='number' || !isFinite(v) || v<=0) return null;
+    // Android-клиент отдаёт insets в физических пикселях, веб — в CSS-пикселях
+    if(v>200) v=v/(window.devicePixelRatio||1);
+    return Math.min(140,Math.round(v));
+  }
+  function setInsets(ins){
+    if(!ins) return;
+    const root=document.documentElement;
+    const t=toCssPx(ins.top), b=toCssPx(ins.bottom);
+    if(t!==null) root.style.setProperty('--vk-top',t+'px');
+    if(b!==null) root.style.setProperty('--vk-bottom',b+'px');
+    resize();
+  }
+  async function applyInsets(){
+    if(!inVK) return;
+    try{ const cfg=await sendVK('VKWebAppGetConfig'); setInsets(cfg&&cfg.insets); }catch(e){}
+  }
+  function subscribeInsets(){
+    try{ bridge.subscribe(e=>{
+      const d=e&&e.detail;
+      if(d && d.type==='VKWebAppUpdateConfig' && d.data) setInsets(d.data.insets);
+    }); }catch(e){}
+  }
 
   /* ================= STATE ================= */
   const S = {
@@ -484,6 +565,7 @@
     if(S.balance<S.stake){openBroke();return;}
     S.balance-=S.stake; S.position={dir,entry:S.price,stake:S.stake,resolveAt:performance.now()+S.expMs};
     renderBalance();setTradeEnabled(false);elPos.classList.add('show');
+    if(tourOn && TOUR[tourI] && TOUR[tourI].interact) tourStepDone();
   }
   function resolve(){
     const pos=S.position; if(!pos) return;
@@ -501,7 +583,8 @@
     updateLevel(); renderBalance();
     if($('profileModal').classList.contains('show')) renderProfile(false); // живое обновление статы
     elPos.classList.remove('show'); setTradeEnabled(true);
-    if(S.balance<S.minStake) setTimeout(openBroke,700);
+    if(tourAwait) tourResolved(win);
+    else if(S.balance<S.minStake) setTimeout(openBroke,700);
     if(S.stake>S.balance){S.stake=clampStake(S.stake);renderStake();}
     scheduleSave();
   }
@@ -647,8 +730,10 @@
     const qb=$('questBadge'); const n=questsReadyCount(); if(n>0){qb.classList.add('show');qb.textContent=n;}else qb.classList.remove('show');
   }
 
-  /* ================= LEADERBOARD (демо-друзья + ты) ================= */
-  const DEMO_FRIENDS=[
+  /* ================= LEADERBOARD (соперники-боты + ты) =================
+     Соперники намеренно подписаны как боты: выдавать сгенерированные ники за
+     реальных друзей нельзя — это вымышленный контент под видом настоящего. */
+  const RIVAL_BOTS=[
     {nick:'Кекс_на_бирже',rating:4200,hue:20},{nick:'ХодлерТаня',rating:3100,hue:300},
     {nick:'Профит777',rating:2650,hue:130},{nick:'Слил_депо',rating:1900,hue:0},
     {nick:'МаксТрейд',rating:1400,hue:210},{nick:'ЛунаМи',rating:900,hue:270},
@@ -656,7 +741,7 @@
   ];
   function renderLeaderboard(){
     const list=$('leaderList');list.innerHTML='';
-    const rows=DEMO_FRIENDS.map(f=>({...f,you:false}));
+    const rows=RIVAL_BOTS.map(f=>({...f,you:false}));
     rows.push({nick:S.nick,rating:S.rating,hue:S.hue,you:true});
     rows.sort((a,b)=>b.rating-a.rating);
     const medals=['🥇','🥈','🥉'];
@@ -669,17 +754,25 @@
       list.appendChild(el);
     });
     const myPos=rows.findIndex(r=>r.you)+1;
-    $('lbNote').textContent = Platform.inVK
-      ? 'Твоё место среди друзей: '+myPos+' из '+rows.length
-      : 'Демо-соперники. В ВК тут будут твои реальные друзья (VK Bridge). Твоё место: '+myPos;
+    $('lbNote').textContent='Твоё место: '+myPos+' из '+rows.length+'. Соперники — боты, их рейтинг фиксированный.';
   }
   function esc(s){return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
 
   /* ================= SHARE ================= */
+  let sharing=false;
   async function shareResult(){
-    const r=getRank(S.rating);
-    const text='📈 МемКойн Трейдинг — я '+r.cur.name+', рейтинг '+fmt(S.rating)+', лучшая серия x'+S.bestStreak+'! Обгони меня 🚀';
-    await Platform.share(text);
+    if(sharing) return; sharing=true;
+    const btn=$('navShare'), orig=btn.innerHTML;
+    btn.disabled=true; btn.textContent='…';
+    try{
+      const r=getRank(S.rating);
+      const text='📈 МемКойн Трейдинг — я '+r.cur.name+', рейтинг '+fmt(S.rating)+', лучшая серия x'+S.bestStreak+'! Обгони меня 🚀';
+      const res=await Platform.share(text);
+      if(res==='ok') toast('Спасибо, что делишься 🚀');
+      else if(res==='fail') toast('Не удалось открыть «Поделиться». Попробуй позже.');
+    } finally {
+      btn.disabled=false; btn.innerHTML=orig; sharing=false;
+    }
   }
 
   /* ================= AD / STORE ================= */
@@ -688,12 +781,6 @@
     const ok=await Platform.rewarded();
     btn.disabled=false; btn.textContent=orig;
     if(ok) addCoins(reward);
-  }
-  async function buyPack(packEl){
-    const add=+packEl.dataset.add;
-    const ok=await Platform.pay({item:'coins_'+add, add});
-    if(ok){ addCoins(add); closeStore(); }
-    else { toast('Оплата недоступна. Попробуйте позже.'); }
   }
 
   /* ================= MODALS ================= */
@@ -747,7 +834,6 @@
     $('openStore2').onclick=()=>{closeBroke();openStore();};
     $('storeAd').onclick=e=>watchAd(e.target,750);
     $('closeStore').onclick=closeStore;
-    document.querySelectorAll('.pack').forEach(p=>p.onclick=()=>buyPack(p));
 
     $('claimDaily').onclick=claimDaily; $('closeDaily').onclick=()=>$('dailyModal').classList.remove('show');
     $('closeQuests').onclick=()=>$('questModal').classList.remove('show');
@@ -758,38 +844,128 @@
 
     document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
 
-    // онбординг
-    $('onbNext').onclick=()=>{ if(onbI<ONB.length-1){ onbI++; renderOnb(); } else finishOnboarding(); };
-    $('onbSkip').onclick=finishOnboarding;
+    // обучение
+    $('tourNext').onclick=tourNext;
+    $('tourSkip').onclick=finishTour;
+    $('replayTour').onclick=()=>{ $('profileModal').classList.remove('show'); startTour(); };
 
-    // запас сверху под кнопки ВК на мобильных
-    if(inVK && vkMobile){ const a=document.querySelector('.app'); if(a) a.classList.add('vk-mobile'); }
+    // запас под системные кнопки ВК: сначала фолбэк, затем реальные insets от ВК
+    if(inVK && vkMobile) document.documentElement.style.setProperty('--vk-top','54px');
+    applyInsets(); if(inVK) subscribeInsets();
 
     // первый запуск — показать обучение; иначе ежедневный бонус
     let onbFlag=''; try{ onbFlag=await Platform.storageGet('mc_onboarded'); }catch(e){}
-    if(!onbFlag){ showOnboarding(); }
+    if(!onbFlag){ startTour(); }
     else if(!S.dailyClaimed){ setTimeout(openDaily,500); }
 
     requestAnimationFrame(loop);
   }
 
-  /* ================= ONBOARDING ================= */
-  const ONB=[
-    {e:'📈',t:'Добро пожаловать!',x:'МемКойн Трейдинг — это симулятор биржи на игровые монеты. Монеты виртуальные: вывод и обмен на реальные деньги невозможны.'},
-    {e:'🔮',t:'Читай рынок',x:'Смотри на график цены и шкалу «Давление рынка». Выбери время экспирации (от 5 сек до 5 мин) и размер ставки.'},
-    {e:'🎯',t:'Делай прогноз',x:'Жми ВВЕРХ, если ждёшь роста, или ВНИЗ — если падения. Угадал направление к концу времени — получаешь +92% к ставке. Удачи!'}
+  /* ================= ОБУЧЕНИЕ =================
+     Пошаговый тур с подсветкой реальных элементов. Последний шаг интерактивный:
+     игрок сам совершает первую сделку, и тур ждёт её результата. */
+  const TOUR=[
+    {title:'Это симулятор биржи',
+     text:'Ты торгуешь мемкойнами на игровые монеты. Монеты виртуальные — вывести или обменять их на реальные деньги нельзя.'},
+    {sel:'.ticker', title:'Курс мемкойна',
+     text:'Текущая цена БИТОКа и её изменение с начала сессии. Цена живая и обновляется каждые десятые доли секунды.'},
+    {sel:'.chart-wrap', title:'График цены',
+     text:'История последних минут. Иногда рынок пампит или обваливается — такие моменты подсвечиваются прямо на графике.'},
+    {sel:'.pressure', title:'Давление рынка',
+     text:'Подсказка о вероятном направлении движения. Это не гарантия: последнее слово всегда за тобой.'},
+    {sel:'#expSeg', title:'Время экспирации',
+     text:'Через сколько подводится итог сделки — от 5 секунд до 5 минут. Можешь нажать любое время и выбрать своё.'},
+    {sel:'.bet-row', title:'Размер ставки',
+     text:'Сколько монет ставишь. Минимум 25 — меняй кнопками «−» и «+» или введи число вручную.'},
+    {sel:'.trade', title:'Сделай первую сделку',
+     text:'Жми ВВЕРХ, если ждёшь роста цены, или ВНИЗ, если падения. Угадаешь направление — получишь +92% к ставке.',
+     interact:true, hint:'Нажми ВВЕРХ или ВНИЗ, чтобы продолжить'}
   ];
-  let onbI=0;
-  function renderOnb(){ const s=ONB[onbI];
-    $('onbEmoji').textContent=s.e; $('onbTitle').textContent=s.t; $('onbText').textContent=s.x;
-    $('onbDots').innerHTML=ONB.map((_,i)=>'<i class="'+(i===onbI?'on':'')+'"></i>').join('');
-    $('onbNext').textContent = onbI<ONB.length-1 ? 'Далее →' : 'Начать игру 🚀';
+  let tourI=0, tourOn=false, tourAwait=false;
+
+  function moveHole(el){
+    const hole=$('tourHole');
+    if(!el){ hole.classList.add('blank'); hole.style.width='0px'; hole.style.height='0px';
+      hole.style.left='50%'; hole.style.top='50%'; return null; }
+    const r=el.getBoundingClientRect(), p=6;
+    hole.classList.remove('blank');
+    hole.style.left=(r.left-p)+'px'; hole.style.top=(r.top-p)+'px';
+    hole.style.width=(r.width+p*2)+'px'; hole.style.height=(r.height+p*2)+'px';
+    return r;
   }
-  function showOnboarding(){ onbI=0; renderOnb(); $('onboard').classList.add('show'); }
-  function finishOnboarding(){ $('onboard').classList.remove('show');
+  function setBlockers(rect,interact){
+    const t=$('tbTop'),r=$('tbRight'),b=$('tbBottom'),l=$('tbLeft');
+    if(!rect || !interact){ // блокируем весь экран целиком
+      t.style.cssText='position:absolute;inset:0';
+      [r,b,l].forEach(e=>e.style.cssText='position:absolute;width:0;height:0');
+      return;
+    }
+    const p=6, top=Math.max(0,rect.top-p), left=Math.max(0,rect.left-p),
+          w=rect.width+p*2, h=rect.height+p*2;
+    t.style.cssText='position:absolute;left:0;top:0;right:0;height:'+top+'px';
+    b.style.cssText='position:absolute;left:0;top:'+(top+h)+'px;right:0;bottom:0';
+    l.style.cssText='position:absolute;left:0;top:'+top+'px;width:'+left+'px;height:'+h+'px';
+    r.style.cssText='position:absolute;left:'+(left+w)+'px;top:'+top+'px;right:0;height:'+h+'px';
+  }
+  function placeCard(rect){
+    const card=$('tourCard');
+    if(!rect){ card.classList.add('center'); card.style.top=''; return; }
+    card.classList.remove('center');
+    const ch=card.offsetHeight, vh=window.innerHeight, gap=14;
+    let top;
+    if(rect.bottom+gap+ch<=vh-12) top=rect.bottom+gap;
+    else if(rect.top-gap-ch>=12) top=rect.top-gap-ch;
+    else top=Math.max(12,(vh-ch)/2);
+    card.style.top=top+'px';
+  }
+  function renderTour(){
+    const s=TOUR[tourI];
+    $('tourStep').textContent='Шаг '+(tourI+1)+' из '+TOUR.length;
+    $('tourTitle').textContent=s.title;
+    $('tourText').textContent=s.text;
+    const interact=!!s.interact;
+    $('tourNext').style.display=interact?'none':'';
+    $('tourWait').style.display=interact?'block':'none';
+    if(interact) $('tourWait').textContent=s.hint;
+    $('tourNext').textContent = tourI<TOUR.length-1 ? 'Далее →' : 'Готово';
+    const rect=moveHole(s.sel?document.querySelector(s.sel):null);
+    setBlockers(rect,interact);
+    placeCard(rect);
+  }
+  function startTour(){
+    tourI=0; tourOn=true; tourAwait=false;
+    $('tour').classList.add('show'); renderTour();
+  }
+  function tourNext(){ if(tourI<TOUR.length-1){ tourI++; renderTour(); } else finishTour(); }
+  function tourStepDone(){ // игрок совершил сделку на интерактивном шаге
+    tourAwait=true;
+    moveHole(null); setBlockers(null,false); $('tourCard').classList.add('center');
+    $('tourTitle').textContent='Сделка открыта';
+    $('tourText').textContent='Теперь ждём итога. Позиция и обратный отсчёт видны на графике.';
+    $('tourWait').textContent='Считаем результат…';
+  }
+  function tourResolved(win){ // сделка закрылась, пока шло обучение
+    tourAwait=false;
+    $('tourTitle').textContent = win?'Прогноз сошёлся 🎉':'На этот раз мимо';
+    $('tourText').textContent = win
+      ? 'Ставка и выплата +92% зачислены на баланс. Дальше — только практика.'
+      : 'Ставка ушла в минус, но монеты не кончатся: есть ежедневный бонус, задания и реклама за монеты.';
+    $('tourWait').style.display='none';
+    $('tourNext').style.display=''; $('tourNext').textContent='Начать играть 🚀';
+    tourI=TOUR.length-1;
+  }
+  function finishTour(){
+    tourOn=false; tourAwait=false;
+    $('tour').classList.remove('show');
     try{ Platform.storageSet('mc_onboarded','1'); }catch(e){}
     if(!S.dailyClaimed) setTimeout(openDaily,400);
   }
+  // подсветка считается от координат вьюпорта — при скролле и ресайзе пересчитываем,
+  // иначе рамка отклеивается от элемента
+  const retour=()=>{ if(tourOn && !tourAwait) renderTour(); };
+  window.addEventListener('resize',retour);
+  window.addEventListener('scroll',retour,{passive:true});
+
   init();
 })();
 </script>
