@@ -440,6 +440,15 @@
       if(!inVK) return;
       try{ await sendVK('VKWebAppHideBannerAd'); }catch(e){}
     },
+    // Вступление в сообщество — диалоговый метод: клиент показывает окно
+    // и ждёт решения игрока, поэтому без таймаута. Проверить подписку
+    // с клиента нельзя, для этого нужен серверный запрос к API, так что
+    // считаем успехом только явное подтверждение от клиента.
+    async joinGroup(id){
+      if(!inVK) return false;
+      try{ const r=await bridge.send('VKWebAppJoinGroup',{group_id:id}); return !!(r&&r.result); }
+      catch(e){ return false; }
+    },
     // Диалог шера ждёт действия пользователя — вызываем bridge.send напрямую, без таймаута.
     // Возвращает 'ok' | 'cancel' | 'fail', чтобы отказ пользователя не выглядел как ошибка.
     async share(text){
@@ -505,6 +514,11 @@
      остаётся трёхкратным. Счётчик нужен не для частоты, а чтобы реклама не влезала
      посреди серии; при значении 10 она вдобавок вовсе не доходила
      до тех, кто играет медленно и до десятой сделки не добирается. */
+  /* Числовой id сообщества: VKWebAppJoinGroup короткое имя не принимает.
+     Награда разовая и заметная — вдвое больше лучшего дневного задания. */
+  const GROUP_ID = 240651866;    // vk.ru/memcointrading
+  const GROUP_REWARD = 2000;
+
   const BANNER_FALLBACK_H = 62;
   const AD_EVERY_TRADES = 3;
   const AD_MIN_GAP_MS = 90*1000;
@@ -559,7 +573,7 @@
     trades:0, wins:0, streak:0, bestStreak:0, rating:300,
     nick:'Трейдер', uid:String(100000+Math.floor(Math.random()*900000)), hue:Math.floor(Math.random()*360),
     // daily / quests
-    loginStreak:1, lastDay:'', dailyClaimed:false,
+    loginStreak:1, lastDay:'', dailyClaimed:false, subRewarded:false,
     quests:null, questDay:'',
     // price engine
     price:30000, drift:0, driftTarget:0, eventTicks:0, eventDir:0, history:[], lastTick:0,
@@ -598,7 +612,7 @@
   async function save(){
     const d={balance:S.balance,stake:S.stake,trades:S.trades,wins:S.wins,bestStreak:S.bestStreak,
       rating:S.rating,nick:S.nick,uid:S.uid,hue:S.hue,loginStreak:S.loginStreak,lastDay:S.lastDay,
-      dailyClaimed:S.dailyClaimed,quests:S.quests,questDay:S.questDay};
+      dailyClaimed:S.dailyClaimed,subRewarded:S.subRewarded,quests:S.quests,questDay:S.questDay};
     await Platform.storageSet(SAVE_KEY, JSON.stringify(d));
   }
   async function load(){
@@ -791,8 +805,38 @@
     updateBadges();
   }
   function questReady(q){return !q.claimed && q.prog>=q.target;}
+  /* Карточка подписки живёт в заданиях, а не в ежедневном бонусе: бонус
+     открывается сам при запуске, а правила запрещают предлагать подписку
+     на старте. В задания игрок заходит сам. */
+  function renderSubQuest(list){
+    if(!Platform.inVK || !GROUP_ID) return;
+    const el=document.createElement('div');el.className='quest';
+    el.innerHTML=
+      '<div class="q-top"><div class="q-label">Подписаться на сообщество</div>'+
+      '<div class="q-reward">+'+fmt(GROUP_REWARD)+' 🪙</div></div>'+
+      '<div class="q-foot"><div class="q-prog">Разовая награда</div>'+
+      '<button class="q-claim '+(S.subRewarded?'claimed':'ready')+'" id="subBtn" '+
+      (S.subRewarded?'disabled':'')+'>'+(S.subRewarded?'Получено':'Подписаться')+'</button></div>';
+    list.appendChild(el);
+    if(S.subRewarded) return;
+    el.querySelector('#subBtn').onclick=async()=>{
+      const btn=el.querySelector('#subBtn'); btn.disabled=true; btn.textContent='Ждём…';
+      const ok=await Platform.joinGroup(GROUP_ID);
+      if(ok && !S.subRewarded){
+        S.subRewarded=true; S.balance+=GROUP_REWARD; renderBalance(); scheduleSave();
+        toast('Спасибо! +'+fmt(GROUP_REWARD)+' монет');
+      }else if(!ok){
+        /* Отказ игрока не комментируем — правила запрещают наказывать
+           за отказ от соцдействий, а упрёк читается именно так. */
+        btn.disabled=false; btn.textContent='Подписаться';
+      }
+      renderQuests();
+    };
+  }
+
   function renderQuests(){
     const list=$('questList');list.innerHTML='';
+    renderSubQuest(list);
     for(const q of S.quests){
       const ready=questReady(q), pct=Math.min(100,Math.round(q.prog/q.target*100));
       const el=document.createElement('div');el.className='quest';
