@@ -19,12 +19,12 @@
     color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
   /* --vk-top/--vk-bottom: отступы под системные кнопки ВК, заполняются из VKWebAppGetConfig.
      Значения по умолчанию — на случай, если конфиг недоступен. */
-  :root{--vk-top:0px;--vk-bottom:0px}
+  :root{--vk-top:0px;--vk-bottom:0px;--banner:0px}
   /* min-height, а не height: если интерфейс не влезает даже при минимальном графике,
      контейнер должен вырасти и дать странице прокрутку. С фиксированной height дети
      переполняли padding-bottom и дисклеймер уезжал под системные кнопки. */
   .app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;gap:9px;
-    padding:calc(10px + var(--vk-top) + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(20px + var(--vk-bottom) + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
+    padding:calc(10px + var(--vk-top) + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(20px + var(--banner) + var(--vk-bottom) + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))}
 
   .topbar{display:flex;align-items:center;gap:10px}
   .logo{font-weight:800;letter-spacing:-.02em;font-size:16px;line-height:1}
@@ -107,7 +107,7 @@
   @media (max-height:760px){
     .app{gap:6px;
       padding-top:calc(6px + var(--vk-top) + env(safe-area-inset-top));
-      padding-bottom:calc(10px + var(--vk-bottom) + env(safe-area-inset-bottom))}
+      padding-bottom:calc(10px + var(--banner) + var(--vk-bottom) + env(safe-area-inset-bottom))}
     .chart-wrap{min-height:120px}
     .pressure{padding:7px 12px}
     .pressure .row{margin-bottom:5px}
@@ -422,6 +422,24 @@
       }catch(e){ return false; } }
       await wait(2000); return true; // fallback вне ВК
     },
+    // Реклама между экранами. Тоже без таймаута: ролик длится дольше любого таймера.
+    async interstitial(){
+      if(!inVK) return false;
+      try{ const r=await bridge.send('VKWebAppShowNativeAds',{ad_format:'interstitial'});
+        return !(r && r.result===false); }catch(e){ return false; }
+    },
+    // Баннер: высоту не угадываем, её сообщает клиент в ответе и в событии
+    // VKWebAppBannerAdUpdated. Просим layout_type:'resize' — тогда клиент сам
+    // ужимает вебвью; если вернулся 'overlay', полосу резервируем сами.
+    async showBanner(){
+      if(!inVK) return null;
+      try{ return await bridge.send('VKWebAppShowBannerAd',
+        {banner_location:'bottom',layout_type:'resize',height_type:'regular'}); }catch(e){ return null; }
+    },
+    async hideBanner(){
+      if(!inVK) return;
+      try{ await sendVK('VKWebAppHideBannerAd'); }catch(e){}
+    },
     // Диалог шера ждёт действия пользователя — вызываем bridge.send напрямую, без таймаута.
     // Возвращает 'ok' | 'cancel' | 'fail', чтобы отказ пользователя не выглядел как ошибка.
     async share(text){
@@ -464,6 +482,59 @@
       const d=e&&e.detail;
       if(d && d.type==='VKWebAppUpdateConfig' && d.data) setInsets(d.data.insets);
     }); }catch(e){}
+  }
+
+  /* ================= РЕКЛАМА =================
+     Два формата, и у каждого своя причина показываться именно так.
+
+     Баннер висит внизу постоянно, кроме обучения: реклама в онбординге
+     запрещена правилами, да и подсветку шагов она перекрывает. Полосу
+     резервируем только если клиент ответил 'overlay' — при 'resize' он
+     ужимает вебвью сам, и наш отступ был бы вторым.
+
+     Интерстишл — полноэкранный, показывается между экранами. У этой игры
+     цикл короткий: ставка, пятнадцать секунд, результат. Показывать рекламу
+     на каждом переходе значит прерывать игрока каждые пятнадцать секунд —
+     это и правилами запрещено (не чаще раза в 30 секунд), и просто убивает
+     сессию. Поэтому три ограничителя сразу: каждая десятая сделка, не чаще
+     раза в три минуты и не раньше первой минуты после запуска. */
+  const BANNER_FALLBACK_H = 62;
+  const AD_EVERY_TRADES = 10;
+  const AD_MIN_GAP_MS = 3*60*1000;
+  const AD_QUIET_START_MS = 60*1000;
+  let bannerWanted=false, lastInterstitial=0, sessionStart=Date.now();
+
+  function reserveBanner(px){ document.documentElement.style.setProperty('--banner',Math.max(0,px)+'px'); resize(); }
+  function applyBannerGeometry(d){
+    if(!bannerWanted) return;
+    if(d && d.layout_type==='resize'){ reserveBanner(0); return; }
+    reserveBanner((d && +d.banner_height) || BANNER_FALLBACK_H);
+  }
+  async function showBanner(){
+    bannerWanted=true;
+    const r=await Platform.showBanner();
+    if(!bannerWanted){ Platform.hideBanner(); reserveBanner(0); return; }
+    if(r) applyBannerGeometry(r);
+  }
+  function hideBanner(){ bannerWanted=false; reserveBanner(0); Platform.hideBanner(); }
+  function subscribeBanner(){
+    try{ bridge.subscribe(e=>{
+      const d=e&&e.detail; if(!d) return;
+      if(d.type==='VKWebAppBannerAdUpdated') applyBannerGeometry(d.data||{});
+      if(d.type==='VKWebAppBannerAdClosedByUser') reserveBanner(0);
+    }); }catch(e){}
+  }
+
+  function maybeInterstitial(){
+    if(!Platform.inVK || tourOn) return;
+    if(S.trades % AD_EVERY_TRADES !== 0) return;
+    const now=Date.now();
+    if(now-sessionStart < AD_QUIET_START_MS) return;
+    if(now-lastInterstitial < AD_MIN_GAP_MS) return;
+    lastInterstitial=now;
+    /* Пауза, чтобы игрок успел увидеть результат сделки: реклама поверх
+       цифры выигрыша читается как «отняли и показали баннер». */
+    setTimeout(()=>{ Platform.interstitial(); }, 1200);
   }
 
   /* ================= STATE ================= */
@@ -582,6 +653,7 @@
     questProgress(win);
     updateLevel(); renderBalance();
     if($('profileModal').classList.contains('show')) renderProfile(false); // живое обновление статы
+    maybeInterstitial();
     elPos.classList.remove('show'); setTradeEnabled(true);
     if(tourAwait) tourResolved(win);
     else if(S.balance<S.minStake) setTimeout(openBroke,700);
@@ -851,12 +923,12 @@
 
     // запас под системные кнопки ВК: сначала фолбэк, затем реальные insets от ВК
     if(inVK && vkMobile) document.documentElement.style.setProperty('--vk-top','54px');
-    applyInsets(); if(inVK) subscribeInsets();
+    applyInsets(); if(inVK){ subscribeInsets(); subscribeBanner(); }
 
     // первый запуск — показать обучение; иначе ежедневный бонус
     let onbFlag=''; try{ onbFlag=await Platform.storageGet('mc_onboarded'); }catch(e){}
     if(!onbFlag){ startTour(); }
-    else if(!S.dailyClaimed){ setTimeout(openDaily,500); }
+    else { showBanner(); if(!S.dailyClaimed) setTimeout(openDaily,500); }
 
     requestAnimationFrame(loop);
   }
@@ -934,6 +1006,7 @@
   }
   function startTour(){
     tourI=0; tourOn=true; tourAwait=false;
+    hideBanner();   // реклама в онбординге запрещена и перекрывает подсветку
     $('tour').classList.add('show'); renderTour();
   }
   function tourNext(){ if(tourI<TOUR.length-1){ tourI++; renderTour(); } else finishTour(); }
@@ -957,6 +1030,7 @@
   function finishTour(){
     tourOn=false; tourAwait=false;
     $('tour').classList.remove('show');
+    showBanner();
     try{ Platform.storageSet('mc_onboarded','1'); }catch(e){}
     if(!S.dailyClaimed) setTimeout(openDaily,400);
   }
