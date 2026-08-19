@@ -445,9 +445,10 @@
     // с клиента нельзя, для этого нужен серверный запрос к API, так что
     // считаем успехом только явное подтверждение от клиента.
     async joinGroup(id){
-      if(!inVK) return false;
-      try{ const r=await bridge.send('VKWebAppJoinGroup',{group_id:id}); return !!(r&&r.result); }
-      catch(e){ return false; }
+      if(!inVK) return 'outside';
+      try{ const r=await bridge.send('VKWebAppJoinGroup',{group_id:id});
+        return (r&&r.result) ? 'ok' : 'cancel'; }
+      catch(e){ return userDenied(e) ? 'cancel' : 'fail'; }
     },
     // Диалог шера ждёт действия пользователя — вызываем bridge.send напрямую, без таймаута.
     // Возвращает 'ok' | 'cancel' | 'fail', чтобы отказ пользователя не выглядел как ошибка.
@@ -821,13 +822,23 @@
     if(S.subRewarded) return;
     el.querySelector('#subBtn').onclick=async()=>{
       const btn=el.querySelector('#subBtn'); btn.disabled=true; btn.textContent='Ждём…';
-      const ok=await Platform.joinGroup(GROUP_ID);
-      if(ok && !S.subRewarded){
+      /* Страховка только для внешнего вида: сам вызов не отменяем и не гоняем
+         с таймером — диалог ждёт игрока сколько нужно, и таймаут на нём ломает
+         функциональность. Но если ответа нет минуту, кнопка не должна навсегда
+         остаться в состоянии «Ждём…». */
+      const unstick=setTimeout(()=>{ if(!S.subRewarded){ btn.disabled=false; btn.textContent='Подписаться'; } },60000);
+      const res=await Platform.joinGroup(GROUP_ID);
+      clearTimeout(unstick);
+      if(res==='ok' && !S.subRewarded){
         S.subRewarded=true; S.balance+=GROUP_REWARD; renderBalance(); scheduleSave();
         toast('Спасибо! +'+fmt(GROUP_REWARD)+' монет');
-      }else if(!ok){
+      }else{
         /* Отказ игрока не комментируем — правила запрещают наказывать
-           за отказ от соцдействий, а упрёк читается именно так. */
+           за отказ от соцдействий, а упрёк читается именно так. А вот
+           про настоящую поломку молчать нельзя: со стороны она выглядит
+           точно так же, как мёртвая кнопка. */
+        if(res==='fail') toast('Не удалось открыть окно подписки. Попробуйте позже');
+        if(res==='outside') toast('Подписка доступна из приложения ВКонтакте');
         btn.disabled=false; btn.textContent='Подписаться';
       }
       renderQuests();
@@ -848,7 +859,10 @@
         (q.claimed?'Получено':(ready?'Забрать':'В процессе'))+'</button></div>';
       list.appendChild(el);
     }
-    list.querySelectorAll('.q-claim.ready').forEach(b=>b.onclick=()=>claimQuest(b.dataset.q));
+    /* Только карточки заданий: у них есть data-q. Без этого условия строка
+       затирала обработчик кнопки подписки — у неё те же классы, и клик уходил
+       в claimQuest(undefined), то есть в никуда. */
+    list.querySelectorAll('.q-claim.ready[data-q]').forEach(b=>b.onclick=()=>claimQuest(b.dataset.q));
   }
   function claimQuest(id){
     const q=S.quests.find(x=>x.id===id); if(!q||!questReady(q))return;
